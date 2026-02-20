@@ -60,7 +60,7 @@ class DeliverySyncUseCase:
                     repository=f"{owner}/{repo}",
                     refs=[
                         Ref(
-                            role=RefRole.trigger,
+                            role=RefRole.request,
                             type=RefType.github_issue,
                             label=label,
                             url=gh_issue.html_url,
@@ -72,7 +72,7 @@ class DeliverySyncUseCase:
                 created += 1
                 logger.info("Created delivery", owner=owner, repo=repo, label=label)
 
-            # Close deliveries whose trigger issues are no longer open
+            # Close deliveries whose request issues are no longer open
             open_numbers = {issue.number for issue in gh_issues}
             full_repo = f"{owner}/{repo}"
             all_deliveries = self._deliveries.list_deliveries()
@@ -82,15 +82,15 @@ class DeliverySyncUseCase:
                 if delivery.get("repository") != full_repo:
                     continue
 
-                trigger_ref = next(
+                request_ref = next(
                     (r for r in delivery.get("refs", [])
-                     if r.get("role") == "trigger" and r.get("type") == "github_issue"),
+                     if r.get("role") == "request" and r.get("type") == "github_issue"),
                     None,
                 )
-                if trigger_ref is None:
+                if request_ref is None:
                     continue
 
-                label = trigger_ref.get("label", "")
+                label = request_ref.get("label", "")
                 if not label.startswith("#"):
                     continue
                 number = int(label[1:])

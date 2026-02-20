@@ -149,7 +149,7 @@ class DeliveryUseCasesImpl:
 
         trigger_label = ""
         for ref in data.get("refs", []):
-            if ref.get("role") == "trigger":
+            if ref.get("role") == "request":
                 trigger_label = ref.get("label", "")
                 break
         raw = f"{data['repository']}:{trigger_label}"
@@ -170,10 +170,10 @@ class DeliveryUseCasesImpl:
             new_refs = update_data.pop("refs")
             existing_refs = existing.get("refs", [])
             for new_ref in new_refs:
-                if new_ref.get("role") == "output":
+                if new_ref.get("role") == "work":
                     existing_refs = [
                         r for r in existing_refs
-                        if not (r.get("role") == "output" and r.get("type") == new_ref.get("type"))
+                        if not (r.get("role") == "work" and r.get("type") == new_ref.get("type"))
                     ]
             existing["refs"] = existing_refs + new_refs
         existing.update(update_data)
@@ -333,7 +333,7 @@ class DeliveryUseCasesImpl:
     def _get_pr_branch(delivery: dict) -> str | None:
         """Extract branch name from output:pr ref if present."""
         for ref in delivery.get("refs", []):
-            if ref.get("role") == "output" and ref.get("type") == "pr":
+            if ref.get("role") == "work" and ref.get("type") == "pr":
                 # PR URL contains the delivery_id; branch is jakeops/{delivery_id}
                 return f"jakeops/{delivery['id']}"
         return None
@@ -520,7 +520,7 @@ class DeliveryUseCasesImpl:
                     token=token,
                 )
                 delivery.setdefault("refs", []).append({
-                    "role": "output",
+                    "role": "work",
                     "type": "pr",
                     "label": "Draft PR",
                     "url": pr_url,
