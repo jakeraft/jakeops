@@ -16,6 +16,7 @@ class Source(BaseModel):
     token: str = ""
     active: bool = True
     default_exit_phase: str = "deploy"
+    last_polled_at: str | None = None
 
 
 class SourceCreate(BaseModel):

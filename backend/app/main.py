@@ -9,8 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.logging import configure_logging
 from app.middleware.logging import RequestLoggingMiddleware
-from app.adapters.inbound import deliveries, sources, worker
-from app.domain.services.worker_registry import WorkerRegistry
+from app.adapters.inbound import deliveries, sources
 from app.adapters.outbound.filesystem_delivery import FileSystemDeliveryRepository
 from app.adapters.outbound.filesystem_source import FileSystemSourceRepository
 from app.adapters.outbound.github_api import GitHubApiAdapter
@@ -36,17 +35,13 @@ CORS_ORIGINS = os.environ.get("JAKEOPS_CORS_ORIGINS", "*").split(",")
 async def _poll_loop(
     delivery_sync: DeliverySyncUseCase,
     interval: int,
-    registry: WorkerRegistry,
-    runner_name: str,
 ) -> None:
     while True:
         try:
             result = await asyncio.to_thread(delivery_sync.sync_once)
-            registry.record_success(runner_name, result)
             if result["created"] or result["closed"]:
                 logger.info("Delivery sync completed", created=result["created"], closed=result["closed"])
         except Exception as e:
-            registry.record_error(runner_name, str(e))
             logger.error("Delivery sync failed", error=str(e))
         await asyncio.sleep(interval)
 
@@ -65,14 +60,6 @@ async def lifespan(app: FastAPI):
     )
     app.state.source_usecases = SourceUseCasesImpl(source_repo)
 
-    # Runner Registry
-    registry = WorkerRegistry()
-    registry.register(
-        "delivery_sync", label="Delivery Sync",
-        interval_sec=GITHUB_POLL_INTERVAL, enabled=True,
-    )
-    app.state.worker_registry = registry
-
     # Delivery Sync
     github_adapter = GitHubApiAdapter()
     delivery_sync = DeliverySyncUseCase(
@@ -82,7 +69,7 @@ async def lifespan(app: FastAPI):
     )
     app.state.delivery_sync = delivery_sync
     poll_task = asyncio.create_task(
-        _poll_loop(delivery_sync, GITHUB_POLL_INTERVAL, registry, "delivery_sync")
+        _poll_loop(delivery_sync, GITHUB_POLL_INTERVAL)
     )
     logger.info("Delivery polling started", interval_sec=GITHUB_POLL_INTERVAL)
 
@@ -103,4 +90,3 @@ app.add_middleware(RequestLoggingMiddleware)
 # Inbound Adapters (Routers)
 app.include_router(deliveries.router, prefix="/api")
 app.include_router(sources.router, prefix="/api")
-app.include_router(worker.router, prefix="/api")

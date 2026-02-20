@@ -5,7 +5,6 @@ from app.adapters.outbound.filesystem_delivery import FileSystemDeliveryReposito
 from app.adapters.outbound.filesystem_source import FileSystemSourceRepository
 from app.usecases.delivery_usecases import DeliveryUseCasesImpl
 from app.usecases.source_usecases import SourceUseCasesImpl
-from app.domain.services.worker_registry import WorkerRegistry
 
 
 @pytest.fixture(autouse=True)
@@ -17,5 +16,4 @@ def _test_storage(tmp_path):
     app.state.delivery_usecases = DeliveryUseCasesImpl(delivery_repo)
     app.state.source_usecases = SourceUseCasesImpl(source_repo)
 
-    app.state.worker_registry = WorkerRegistry()
     yield tmp_path

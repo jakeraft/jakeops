@@ -123,17 +123,6 @@ export interface SourceUpdate {
   default_exit_phase?: string
 }
 
-// Worker
-export interface WorkerStatus {
-  name: string
-  label: string
-  enabled: boolean
-  interval_sec: number
-  last_poll_at?: string
-  last_result?: Record<string, unknown>
-  last_error?: string
-}
-
 // Transcript
 export interface TranscriptBlock {
   type: string

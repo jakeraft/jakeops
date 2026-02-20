@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table"
 import { useSources } from "@/hooks/use-sources"
 import type { Source, SourceCreate, SourceUpdate } from "@/types"
-import { formatDateTime } from "@/utils/format"
+import { formatRelativeTime } from "@/utils/format"
 
 // --- Add Source Dialog ---
 
@@ -300,7 +300,7 @@ export function SourceList() {
               <TableHead>Repository</TableHead>
               <TableHead>Active</TableHead>
               <TableHead>Exit Phase</TableHead>
-              <TableHead>Created</TableHead>
+              <TableHead>Last Synced</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -318,7 +318,9 @@ export function SourceList() {
                 </TableCell>
                 <TableCell>{s.default_exit_phase}</TableCell>
                 <TableCell className="text-muted-foreground">
-                  {formatDateTime(s.created_at)}
+                  {s.last_polled_at
+                    ? formatRelativeTime(s.last_polled_at)
+                    : "Never"}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-2">
