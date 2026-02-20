@@ -1,10 +1,11 @@
 import json
-import logging
 import os
 import tempfile
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger()
 
 
 class FileSystemSourceRepository:
@@ -19,7 +20,7 @@ class FileSystemSourceRepository:
                 data = json.loads(f.read_text(encoding="utf-8"))
                 items.append(data)
             except (json.JSONDecodeError, ValueError):
-                logger.warning("Skipping corrupted source file: %s", f)
+                logger.warning("Skipping corrupted source file", path=str(f))
         items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         return items
 

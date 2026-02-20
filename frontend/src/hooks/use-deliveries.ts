@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import type { Delivery } from "@/types"
 import { apiFetch } from "@/utils/api"
+import { logger } from "@/utils/logger"
 
 export function useDeliveries() {
   const [deliveries, setDeliveries] = useState<Delivery[]>([])
@@ -14,7 +15,9 @@ export function useDeliveries() {
       const data = await apiFetch<Delivery[]>("/deliveries")
       setDeliveries(data)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error")
+      const message = e instanceof Error ? e.message : "Unknown error"
+      logger.error("Failed to fetch deliveries", { error: message })
+      setError(message)
     } finally {
       setLoading(false)
     }

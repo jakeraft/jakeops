@@ -8,12 +8,13 @@ Implemented as pure functions with no external side effects.
 from __future__ import annotations
 
 import json
-import logging
 from typing import Any
+
+import structlog
 
 from app.domain.models.stream import StreamEvent, StreamMetadata
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 def extract_metadata(events: list[StreamEvent]) -> StreamMetadata:
@@ -139,7 +140,7 @@ def parse_stream_lines(lines: list[str]) -> list[StreamEvent]:
         try:
             data = json.loads(line)
         except json.JSONDecodeError as exc:
-            logger.warning("JSONL parse failed (line %d): %s — %s", idx, exc, line[:200])
+            logger.warning("JSONL parse failed", line_number=idx, error=str(exc), content=line[:200])
             continue
         events.append(StreamEvent(
             type=data.get("type", ""),

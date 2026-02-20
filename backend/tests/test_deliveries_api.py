@@ -31,7 +31,7 @@ def test_get_delivery():
     delivery_id = resp.json()["id"]
     resp = client.get(f"/api/deliveries/{delivery_id}")
     assert resp.status_code == 200
-    assert resp.json()["schema_version"] == 4
+    assert resp.json()["schema_version"] == 5
     assert resp.json()["phase"] == "intake"
     assert resp.json()["run_status"] == "pending"
 

@@ -52,5 +52,4 @@ def delete_source(source_id: str, uc=Depends(get_usecases)):
 
 @router.post("/sources/sync")
 def sync_now(issue_sync=Depends(get_issue_sync)):
-    created = issue_sync.sync_once()
-    return {"created": created}
+    return issue_sync.sync_once()

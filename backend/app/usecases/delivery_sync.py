@@ -1,6 +1,7 @@
 import hashlib
-import logging
 from datetime import datetime
+
+import structlog
 
 from app.domain.constants import KST, ID_HEX_LENGTH
 from app.domain.models.delivery import Ref, RefRole, RefType, DeliveryCreate, Phase, RunStatus, Session
@@ -8,7 +9,7 @@ from app.ports.outbound.github_repository import GitHubRepository
 from app.ports.outbound.source_repository import SourceRepository
 from app.ports.inbound.delivery_usecases import DeliveryUseCases
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class DeliverySyncUseCase:
@@ -22,8 +23,9 @@ class DeliverySyncUseCase:
         self._sources = source_repo
         self._deliveries = delivery_usecases
 
-    def sync_once(self) -> int:
+    def sync_once(self) -> dict:
         created = 0
+        closed = 0
         sources = self._sources.list_sources()
         for source in sources:
             if not source.get("active", True):
@@ -32,7 +34,7 @@ class DeliverySyncUseCase:
             try:
                 gh_issues = self._github.list_open_issues(owner, repo, token=source.get("token", ""))
             except Exception as e:
-                logger.error("Failed to fetch issues: %s/%s — %s", owner, repo, e)
+                logger.error("Failed to fetch issues", owner=owner, repo=repo, error=str(e))
                 continue
 
             source["last_polled_at"] = datetime.now(KST).isoformat()
@@ -65,5 +67,34 @@ class DeliverySyncUseCase:
                 )
                 self._deliveries.create_delivery(body)
                 created += 1
-                logger.info("Created delivery: %s/%s %s", owner, repo, label)
-        return created
+                logger.info("Created delivery", owner=owner, repo=repo, label=label)
+
+            # Close deliveries whose trigger issues are no longer open
+            open_numbers = {issue.number for issue in gh_issues}
+            full_repo = f"{owner}/{repo}"
+            all_deliveries = self._deliveries.list_deliveries()
+            for delivery in all_deliveries:
+                if delivery["phase"] == "close" or delivery["run_status"] == "canceled":
+                    continue
+                if delivery.get("repository") != full_repo:
+                    continue
+
+                trigger_ref = next(
+                    (r for r in delivery.get("refs", [])
+                     if r.get("role") == "trigger" and r.get("type") == "github_issue"),
+                    None,
+                )
+                if trigger_ref is None:
+                    continue
+
+                label = trigger_ref.get("label", "")
+                if not label.startswith("#"):
+                    continue
+                number = int(label[1:])
+
+                if number not in open_numbers:
+                    self._deliveries.close_delivery(delivery["id"])
+                    closed += 1
+                    logger.info("Closed delivery", owner=owner, repo=repo, number=number)
+
+        return {"created": created, "closed": closed}

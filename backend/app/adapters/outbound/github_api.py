@@ -1,10 +1,9 @@
-import logging
-
 import httpx
+import structlog
 
 from app.domain.models.github import GitHubIssue
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 class GitHubApiAdapter:
@@ -20,7 +19,7 @@ class GitHubApiAdapter:
             resp.raise_for_status()
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
-                logger.warning("GitHub repository not found: %s/%s", owner, repo)
+                logger.warning("GitHub repository not found", owner=owner, repo=repo)
                 return []
             raise
         except httpx.HTTPError:
@@ -49,7 +48,7 @@ class GitHubApiAdapter:
             resp.raise_for_status()
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
-                logger.warning("GitHub issue not found: %s/%s#%d", owner, repo, number)
+                logger.warning("GitHub issue not found", owner=owner, repo=repo, number=number)
                 return None
             raise
         except httpx.HTTPError:

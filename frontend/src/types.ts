@@ -78,6 +78,7 @@ export interface Plan {
 // Delivery
 export interface Delivery {
   id: string
+  seq: number
   schema_version: number
   created_at: string
   updated_at: string

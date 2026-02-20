@@ -31,17 +31,35 @@ class FakeSourceRepo:
 class FakeDeliveryUseCases:
     def __init__(self):
         self.created: list[DeliveryCreate] = []
+        self.closed: list[str] = []
         self._deliveries: dict[str, dict] = {}
 
     def get_delivery(self, delivery_id: str) -> dict | None:
         return self._deliveries.get(delivery_id)
 
+    def list_deliveries(self) -> list[dict]:
+        return list(self._deliveries.values())
+
     def create_delivery(self, body: DeliveryCreate) -> dict:
         self.created.append(body)
         raw = f"{body.repository}:{body.refs[0].label}"
         delivery_id = hashlib.sha256(raw.encode()).hexdigest()[:ID_HEX_LENGTH]
-        self._deliveries[delivery_id] = {"id": delivery_id}
+        self._deliveries[delivery_id] = {
+            "id": delivery_id,
+            "phase": "intake",
+            "run_status": "pending",
+            "repository": body.repository,
+            "refs": [r.model_dump() for r in body.refs],
+        }
         return {"id": delivery_id, "status": "created"}
+
+    def close_delivery(self, delivery_id: str) -> dict | None:
+        if delivery_id not in self._deliveries:
+            return None
+        self._deliveries[delivery_id]["phase"] = "close"
+        self._deliveries[delivery_id]["run_status"] = "succeeded"
+        self.closed.append(delivery_id)
+        return {"id": delivery_id, "phase": "close", "run_status": "succeeded"}
 
 
 def test_sync_creates_delivery_for_new_github_issue():
@@ -110,9 +128,9 @@ def test_sync_skips_inactive_source():
     delivery_uc = FakeDeliveryUseCases()
 
     uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
-    created = uc.sync_once()
+    result = uc.sync_once()
 
-    assert created == 0
+    assert result == {"created": 0, "closed": 0}
     assert len(delivery_uc.created) == 0
 
 
@@ -140,9 +158,9 @@ def test_sync_legacy_source_without_token_and_active():
     delivery_uc = FakeDeliveryUseCases()
 
     uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
-    created = uc.sync_once()
+    result = uc.sync_once()
 
-    assert created == 1
+    assert result["created"] == 1
     assert github_repo.last_token == ""
 
 
@@ -160,3 +178,78 @@ def test_sync_uses_source_default_exit_phase():
 
     body = delivery_uc.created[0]
     assert body.exit_phase.value == "verify"
+
+
+def test_sync_closes_delivery_when_issue_closed():
+    """When a previously open issue is no longer in open issues list, delivery is closed."""
+    issue1 = GitHubIssue(number=1, title="Bug", html_url="https://github.com/o/r/issues/1", state="open")
+    github_repo = FakeGitHubRepo([issue1])
+    source_repo = FakeSourceRepo([{"id": "s1", "owner": "o", "repo": "r"}])
+    delivery_uc = FakeDeliveryUseCases()
+
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
+    uc.sync_once()
+    assert len(delivery_uc.created) == 1
+    assert len(delivery_uc.closed) == 0
+
+    # Issue #1 is now closed (not in open list)
+    github_repo._issues = []
+    result = uc.sync_once()
+
+    assert result["closed"] == 1
+    assert len(delivery_uc.closed) == 1
+
+
+def test_sync_does_not_close_already_closed_delivery():
+    """Deliveries already in 'close' phase are skipped."""
+    issue1 = GitHubIssue(number=1, title="Bug", html_url="https://github.com/o/r/issues/1", state="open")
+    github_repo = FakeGitHubRepo([issue1])
+    source_repo = FakeSourceRepo([{"id": "s1", "owner": "o", "repo": "r"}])
+    delivery_uc = FakeDeliveryUseCases()
+
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
+    uc.sync_once()
+
+    # Close the issue
+    github_repo._issues = []
+    uc.sync_once()
+    assert len(delivery_uc.closed) == 1
+
+    # Sync again — should not close again
+    result = uc.sync_once()
+    assert result["closed"] == 0
+    assert len(delivery_uc.closed) == 1
+
+
+def test_sync_does_not_close_canceled_delivery():
+    """Deliveries with run_status='canceled' are skipped."""
+    issue1 = GitHubIssue(number=1, title="Bug", html_url="https://github.com/o/r/issues/1", state="open")
+    github_repo = FakeGitHubRepo([issue1])
+    source_repo = FakeSourceRepo([{"id": "s1", "owner": "o", "repo": "r"}])
+    delivery_uc = FakeDeliveryUseCases()
+
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
+    uc.sync_once()
+
+    # Mark as canceled manually
+    delivery_id = list(delivery_uc._deliveries.keys())[0]
+    delivery_uc._deliveries[delivery_id]["run_status"] = "canceled"
+
+    # Issue is now closed
+    github_repo._issues = []
+    result = uc.sync_once()
+    assert result["closed"] == 0
+
+
+def test_sync_returns_dict_with_created_and_closed():
+    """sync_once() returns a dict with 'created' and 'closed' counts."""
+    github_repo = FakeGitHubRepo([])
+    source_repo = FakeSourceRepo([{"id": "s1", "owner": "o", "repo": "r"}])
+    delivery_uc = FakeDeliveryUseCases()
+
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
+    result = uc.sync_once()
+
+    assert isinstance(result, dict)
+    assert "created" in result
+    assert "closed" in result

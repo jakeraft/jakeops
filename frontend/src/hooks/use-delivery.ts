@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 import type { Delivery } from "@/types"
 import { apiFetch, apiPost } from "@/utils/api"
+import { logger } from "@/utils/logger"
 
 export function useDelivery(id: string | undefined) {
   const [delivery, setDelivery] = useState<Delivery | null>(null)
@@ -16,7 +17,9 @@ export function useDelivery(id: string | undefined) {
       const data = await apiFetch<Delivery>(`/deliveries/${id}`)
       setDelivery(data)
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error")
+      const message = e instanceof Error ? e.message : "Unknown error"
+      logger.error("Failed to fetch delivery", { id, error: message })
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -34,11 +37,12 @@ export function useDelivery(id: string | undefined) {
         await refresh()
       } catch (e) {
         const message = e instanceof Error ? e.message : "Unknown error"
+        logger.error("Delivery action failed", { id, error: message })
         setActionError(message)
         throw e
       }
     },
-    [refresh],
+    [id, refresh],
   )
 
   const approve = useCallback(

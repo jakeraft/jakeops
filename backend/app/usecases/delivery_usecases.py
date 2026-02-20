@@ -112,6 +112,7 @@ class DeliveryUseCasesImpl:
                 break
         raw = f"{data['repository']}:{trigger_label}"
         data["id"] = hashlib.sha256(raw.encode()).hexdigest()[:ID_HEX_LENGTH]
+        data["seq"] = self._repo.next_seq()
 
         _append_phase_run(data, data["phase"], data["run_status"])
 
@@ -137,6 +138,17 @@ class DeliveryUseCasesImpl:
         existing["updated_at"] = datetime.now(KST).isoformat()
         self._repo.save_delivery(delivery_id, existing)
         return {"id": delivery_id, "status": "updated"}
+
+    def close_delivery(self, delivery_id: str) -> dict | None:
+        existing = self._repo.get_delivery(delivery_id)
+        if existing is None:
+            return None
+        existing["phase"] = "close"
+        existing["run_status"] = "succeeded"
+        existing["updated_at"] = datetime.now(KST).isoformat()
+        _append_phase_run(existing, "close", "succeeded")
+        self._repo.save_delivery(delivery_id, existing)
+        return {"id": delivery_id, "phase": "close", "run_status": "succeeded"}
 
     def approve(self, delivery_id: str) -> dict | None:
         existing = self._repo.get_delivery(delivery_id)

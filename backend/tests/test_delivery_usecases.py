@@ -32,7 +32,7 @@ class TestCRUD:
     def test_create_delivery_sets_server_fields(self, usecases):
         result = _create_delivery(usecases)
         delivery = usecases.get_delivery(result["id"])
-        assert delivery["schema_version"] == 4
+        assert delivery["schema_version"] == 5
         assert "+09:00" in delivery["created_at"]
         assert delivery["updated_at"] is not None
         assert delivery["runs"] == []
@@ -40,6 +40,7 @@ class TestCRUD:
         assert delivery["run_status"] == "pending"
         assert delivery["exit_phase"] == "deploy"
         assert len(delivery["phase_runs"]) == 1
+        assert delivery["seq"] == 1
 
     def test_create_delivery_with_exit_phase(self, usecases):
         result = _create_delivery(usecases, exit_phase="verify")
@@ -73,6 +74,40 @@ class TestCRUD:
         assert delivery["repository"] == "jakeops"
         assert delivery["phase"] == "intake"
         assert delivery["run_status"] == "pending"
+
+
+    def test_seq_auto_increments(self, usecases):
+        r1 = _create_delivery(usecases)
+        d1 = usecases.get_delivery(r1["id"])
+        assert d1["seq"] == 1
+
+        body2 = DeliveryCreate(
+            summary="second",
+            repository="jakeops",
+            refs=[{"role": "trigger", "type": "github_issue", "label": "#2"}],
+        )
+        r2 = usecases.create_delivery(body2)
+        d2 = usecases.get_delivery(r2["id"])
+        assert d2["seq"] == 2
+
+    def test_close_delivery(self, usecases):
+        result = _create_delivery(usecases)
+        closed = usecases.close_delivery(result["id"])
+        assert closed["phase"] == "close"
+        assert closed["run_status"] == "succeeded"
+        delivery = usecases.get_delivery(result["id"])
+        assert delivery["phase"] == "close"
+        assert delivery["run_status"] == "succeeded"
+
+    def test_close_delivery_not_found(self, usecases):
+        assert usecases.close_delivery("nonexist") is None
+
+    def test_close_delivery_appends_phase_run(self, usecases):
+        result = _create_delivery(usecases)
+        usecases.close_delivery(result["id"])
+        delivery = usecases.get_delivery(result["id"])
+        assert delivery["phase_runs"][-1]["phase"] == "close"
+        assert delivery["phase_runs"][-1]["run_status"] == "succeeded"
 
 
 class TestGateApprove:

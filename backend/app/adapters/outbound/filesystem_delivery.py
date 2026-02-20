@@ -1,10 +1,11 @@
 import json
-import logging
 import os
 import tempfile
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
+import structlog
+
+logger = structlog.get_logger()
 
 
 class FileSystemDeliveryRepository:
@@ -24,7 +25,7 @@ class FileSystemDeliveryRepository:
                 data = json.loads(f.read_text(encoding="utf-8"))
                 items.append(data)
             except (json.JSONDecodeError, ValueError):
-                logger.warning("Skipping corrupted delivery file: %s", f)
+                logger.warning("Skipping corrupted delivery file", path=str(f))
         items.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         return items
 
@@ -51,6 +52,21 @@ class FileSystemDeliveryRepository:
         delivery_dir.mkdir(parents=True, exist_ok=True)
         file = delivery_dir / f"run-{run_id}.transcript.json"
         self._atomic_write(file, data)
+
+    def next_seq(self) -> int:
+        max_seq = 0
+        for delivery_dir in self._dir.iterdir():
+            if not delivery_dir.is_dir():
+                continue
+            f = delivery_dir / "delivery.json"
+            if not f.exists():
+                continue
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+                max_seq = max(max_seq, data.get("seq", 0))
+            except (json.JSONDecodeError, ValueError):
+                continue
+        return max_seq + 1
 
     def _atomic_write(self, target: Path, data: dict) -> None:
         """Write JSON atomically: write to temp file, then rename."""

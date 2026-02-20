@@ -31,6 +31,7 @@ export function DeliveryList() {
     <Table>
       <TableHeader>
         <TableRow>
+          <TableHead className="w-12">#</TableHead>
           <TableHead>Summary</TableHead>
           <TableHead>Phase</TableHead>
           <TableHead>Status</TableHead>
@@ -41,6 +42,7 @@ export function DeliveryList() {
       <TableBody>
         {deliveries.map((d) => (
           <TableRow key={d.id}>
+            <TableCell className="text-muted-foreground">#{d.seq}</TableCell>
             <TableCell>
               <Link
                 to={`/deliveries/${d.id}`}

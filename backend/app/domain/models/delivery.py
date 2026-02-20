@@ -82,6 +82,7 @@ class ExecutionStats(BaseModel):
 class DeliveryCreate(BaseModel, extra="ignore"):
     schema_version: int | None = None
     id: str | None = None
+    seq: int | None = None
     created_at: str | None = None
     phase: Phase = Phase.intake
     run_status: RunStatus = RunStatus.pending

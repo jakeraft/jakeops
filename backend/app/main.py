@@ -1,12 +1,14 @@
 import asyncio
-import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.logging import configure_logging
+from app.middleware.logging import RequestLoggingMiddleware
 from app.adapters.inbound import deliveries, sources, worker
 from app.domain.services.worker_registry import WorkerRegistry
 from app.adapters.outbound.filesystem_delivery import FileSystemDeliveryRepository
@@ -18,7 +20,9 @@ from app.usecases.delivery_usecases import DeliveryUseCasesImpl
 from app.usecases.source_usecases import SourceUseCasesImpl
 from app.usecases.delivery_sync import DeliverySyncUseCase
 
-logger = logging.getLogger(__name__)
+configure_logging()
+
+logger = structlog.get_logger()
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -37,13 +41,13 @@ async def _poll_loop(
 ) -> None:
     while True:
         try:
-            created = await asyncio.to_thread(delivery_sync.sync_once)
-            registry.record_success(runner_name, {"created": created})
-            if created:
-                logger.info("Delivery sync: created %d deliveries", created)
+            result = await asyncio.to_thread(delivery_sync.sync_once)
+            registry.record_success(runner_name, result)
+            if result["created"] or result["closed"]:
+                logger.info("Delivery sync completed", created=result["created"], closed=result["closed"])
         except Exception as e:
             registry.record_error(runner_name, str(e))
-            logger.error("Delivery sync failed: %s", e)
+            logger.error("Delivery sync failed", error=str(e))
         await asyncio.sleep(interval)
 
 
@@ -80,7 +84,7 @@ async def lifespan(app: FastAPI):
     poll_task = asyncio.create_task(
         _poll_loop(delivery_sync, GITHUB_POLL_INTERVAL, registry, "delivery_sync")
     )
-    logger.info("Delivery polling started (interval: %ds)", GITHUB_POLL_INTERVAL)
+    logger.info("Delivery polling started", interval_sec=GITHUB_POLL_INTERVAL)
 
     yield
     poll_task.cancel()
@@ -94,6 +98,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestLoggingMiddleware)
 
 # Inbound Adapters (Routers)
 app.include_router(deliveries.router, prefix="/api")

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import logging
+
+import structlog
 
 from app.domain.models.stream import StreamEvent
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger()
 
 
 def _extract_session_id(events: list[StreamEvent]) -> str | None:
