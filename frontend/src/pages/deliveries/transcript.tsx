@@ -1,5 +1,3 @@
-import { useState } from "react"
-import { Link, useParams } from "react-router"
 import { ChevronRight, ChevronDown } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -7,7 +5,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { useTranscript } from "@/hooks/use-transcript"
 import type { TranscriptBlock, TranscriptMessage } from "@/types"
 
 // Maximum characters to display in tool_result content before truncation
@@ -126,121 +123,6 @@ export function MessageRenderer({ message }: { message: TranscriptMessage }) {
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-// --- Agent panel sidebar ---
-
-function AgentList({
-  agents,
-  agentKeys,
-  selectedAgent,
-  onSelect,
-}: {
-  agents: Record<string, { model: string }>
-  agentKeys: string[]
-  selectedAgent: string
-  onSelect: (key: string) => void
-}) {
-  return (
-    <div className="space-y-1">
-      {agentKeys.map((key) => {
-        const isSelected = key === selectedAgent
-        const isLeader = key === "leader"
-        const label = isLeader ? "Leader" : "Subagent"
-        const model = agents[key]?.model ?? "unknown"
-
-        return (
-          <button
-            key={key}
-            onClick={() => onSelect(key)}
-            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors cursor-pointer ${
-              isSelected
-                ? "bg-accent text-accent-foreground font-medium"
-                : "hover:bg-muted"
-            }`}
-          >
-            <div className="font-medium">{label}</div>
-            <div className="text-xs text-muted-foreground truncate">{model}</div>
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-// --- Main page ---
-
-export function TranscriptViewer() {
-  const { id, runId } = useParams<{ id: string; runId: string }>()
-  const { transcript, loading, error } = useTranscript(id!, runId!)
-  const [selectedAgent, setSelectedAgent] = useState("leader")
-
-  if (loading) {
-    return <p className="p-4 text-muted-foreground">Loading transcript...</p>
-  }
-
-  if (error) {
-    return <p className="p-4 text-destructive">Error: {error}</p>
-  }
-
-  if (!transcript) {
-    return <p className="p-4 text-muted-foreground">Transcript not found.</p>
-  }
-
-  const { meta, ...agentData } = transcript
-  const agentKeys = Object.keys(agentData)
-  const agents = meta.agents
-
-  // Get messages for the selected agent
-  const messages = (agentData[selectedAgent] ?? []) as TranscriptMessage[]
-  const selectedModel = agents[selectedAgent]?.model ?? "unknown"
-
-  return (
-    <div className="space-y-4">
-      {/* Back navigation */}
-      <Link
-        to={`/deliveries/${id}`}
-        className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-      >
-        &larr; Back to Delivery
-      </Link>
-
-      {/* Top bar metadata */}
-      <div className="flex items-center gap-3">
-        <h1 className="text-lg font-semibold">Transcript</h1>
-        <Badge variant="secondary" className="text-xs">
-          {selectedModel}
-        </Badge>
-      </div>
-
-      {/* Two-panel layout */}
-      <div className="flex gap-6">
-        {/* Left panel: agent list */}
-        <div className="w-64 shrink-0">
-          <h2 className="text-sm font-medium text-muted-foreground mb-2">Agents</h2>
-          <AgentList
-            agents={agents}
-            agentKeys={agentKeys}
-            selectedAgent={selectedAgent}
-            onSelect={setSelectedAgent}
-          />
-        </div>
-
-        {/* Right panel: messages */}
-        <div className="flex-1 min-w-0">
-          {messages.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No messages for this agent.</p>
-          ) : (
-            <div className="space-y-1">
-              {messages.map((msg, i) => (
-                <MessageRenderer key={i} message={msg} />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Link, useParams } from "react-router"
+import { useParams } from "react-router"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -217,29 +217,6 @@ function RefsList({ refs }: { refs: Ref[] }) {
   )
 }
 
-function PlanSection({
-  plan,
-}: {
-  plan: { content: string; generated_at: string; model: string }
-}) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Plan</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="flex gap-4 text-xs text-muted-foreground">
-          <span>Model: {plan.model}</span>
-          <span>Generated: {formatDateTime(plan.generated_at)}</span>
-        </div>
-        <pre className="whitespace-pre-wrap rounded-md bg-muted p-4 text-sm">
-          {plan.content}
-        </pre>
-      </CardContent>
-    </Card>
-  )
-}
-
 function PhaseRunsTable({ phaseRuns }: { phaseRuns: PhaseRun[] }) {
   if (phaseRuns.length === 0) return null
 
@@ -293,10 +270,8 @@ function PhaseRunsTable({ phaseRuns }: { phaseRuns: PhaseRun[] }) {
 }
 
 function AgentRunsSection({
-  deliveryId,
   runs,
 }: {
-  deliveryId: string
   runs: AgentRun[]
 }) {
   if (runs.length === 0) return null
@@ -317,7 +292,6 @@ function AgentRunsSection({
               <TableHead>Tokens</TableHead>
               <TableHead>Duration</TableHead>
               <TableHead>Summary</TableHead>
-              <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -354,14 +328,6 @@ function AgentRunsSection({
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
                   {run.summary ?? "-"}
-                </TableCell>
-                <TableCell>
-                  <Link
-                    to={`/deliveries/${deliveryId}/runs/${run.id}/transcript`}
-                    className="text-sm text-blue-600 underline-offset-4 hover:underline whitespace-nowrap"
-                  >
-                    View Transcript
-                  </Link>
                 </TableCell>
               </TableRow>
             ))}
@@ -512,14 +478,11 @@ export function DeliveryShow() {
       {/* Refs */}
       <RefsList refs={delivery.refs} />
 
-      {/* Plan */}
-      {delivery.plan && <PlanSection plan={delivery.plan} />}
-
       {/* Phase Runs History */}
       <PhaseRunsTable phaseRuns={delivery.phase_runs} />
 
       {/* Agent Runs */}
-      <AgentRunsSection deliveryId={delivery.id} runs={delivery.runs} />
+      <AgentRunsSection runs={delivery.runs} />
 
       {/* Live Transcript (during running) */}
       <LiveTranscript deliveryId={delivery.id} runStatus={delivery.run_status} />
