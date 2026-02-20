@@ -16,7 +16,6 @@ System principle: **System repeats, Agent decides.**
 - implementation planning
 - code changes
 - code review and verdict (pass/not_pass)
-- failure analysis and fix suggestions
 - run summaries
 
 ### Human
@@ -33,7 +32,7 @@ Single orchestration unit for a delivery workflow.
 - workflow phase (`phase`) + execution status (`run_status`)
 - variable-length pipeline via `endpoint`
 - configurable pause points via `checkpoints`
-- references (`refs`: trigger/output/parent)
+- references (`refs`: request/work/parent)
 - optional plan metadata
 - run history and transcripts
 - phase transition history (`phase_runs`)
@@ -114,7 +113,7 @@ Human actions are available at **action phases** (`plan`, `implement`, `review`)
 | implement | succeeded | reject | → plan (pending) |
 | implement | failed | retry | → implement (pending) |
 | review | succeeded + pass | approve | → verify (pending) |
-| review | succeeded + not_pass | reject | → implement (pending, with feedback) |
+| review | succeeded + not_pass | reject | → implement (pending) |
 | review | failed | retry | → review (pending) |
 | any | running | cancel | → failed (error: "Canceled by user") |
 

@@ -95,9 +95,9 @@ Phase logic lives in the use case layer.
 
 ```python
 class SubprocessRunner(Protocol):
-    async def run(
-        self, prompt, cwd, allowed_tools, append_system_prompt
-    ) -> tuple[str, str | None]: ...
+    async def run(self, prompt, cwd, ...) -> tuple[str, str | None]: ...
+    def run_stream(self, prompt, cwd, ...) -> AsyncGenerator[dict, None]: ...
+    def kill(self, delivery_id) -> bool: ...
 ```
 
 In Phase 1, only one adapter exists:
@@ -183,9 +183,9 @@ not reused across phases.
 **Why per-phase, not per-delivery:**
 - Not all phases need user intervention — only checkpoint phases are
   interactive, the rest run headless in the background.
-- Refs accumulation provides full context to each new session. The plan
-  phase gets trigger refs; the implement phase gets trigger + plan output;
-  the review phase gets trigger + plan + implement output. No context is
+- Refs accumulation provides full context to each new session. All
+  phases receive the same refs (request + work URLs). The agent reads
+  full context directly from GitHub issue/PR threads. No context is
   lost between sessions.
 - Clean lifecycle — each session has a clear start (phase begins) and
   the completion signal comes from the web UI (user clicks Approve).

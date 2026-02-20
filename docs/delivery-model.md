@@ -68,7 +68,7 @@ The review phase is unique — the agent produces a **verdict** alongside the ru
 | run_status | verdict | Meaning |
 |------------|---------|---------|
 | succeeded | pass | Code passed review |
-| succeeded | not_pass | Code failed review (with feedback) |
+| succeeded | not_pass | Code failed review |
 | failed | — | Agent execution crashed |
 
 This separation ensures we can distinguish "agent crashed" from "code didn't pass review".
@@ -113,7 +113,7 @@ At non-checkpoint phases, the system auto-advances without human intervention.
 ### Reject
 
 At action phases, human can **reject** to send the Delivery back:
-- `plan` → `plan` (stays at plan/pending with reject reason preserved)
+- `plan` → `plan` (stays at plan/pending)
 - `implement` → `plan`
 - `review` → `implement`
 
@@ -151,7 +151,7 @@ Review completed (succeeded):
   │   ├─ "review" in checkpoints → PAUSE
   │   └─ else → auto-advance
   └─ verdict = not_pass
-      └─ auto-reject → implement (with feedback, always)
+      └─ auto-reject → implement (always)
 ```
 
 ### Approve with Auto-Flow
