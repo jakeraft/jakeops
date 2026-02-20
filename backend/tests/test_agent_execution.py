@@ -7,42 +7,34 @@ import pytest
 from app.adapters.outbound.filesystem_delivery import FileSystemDeliveryRepository
 from app.adapters.outbound.filesystem_source import FileSystemSourceRepository
 from app.domain.models.delivery import DeliveryCreate, DeliveryUpdate, Plan
-from app.domain.models.stream import StreamEvent
 from app.usecases.delivery_usecases import DeliveryUseCasesImpl
 
 
 class MockSubprocessRunner:
-    """Mock that records calls and returns predefined stream events."""
+    """Mock that records calls and returns predefined result."""
 
     def __init__(self, result_text: str = "Generated plan content"):
         self.result_text = result_text
         self.calls: list[dict] = []
 
-    async def run_with_stream(
+    async def run(
         self,
         prompt: str,
         cwd: str,
         allowed_tools: list[str] | None = None,
         append_system_prompt: str | None = None,
-    ) -> tuple[str, list[StreamEvent], str | None]:
+        delivery_id: str | None = None,
+    ) -> tuple[str, str | None]:
         self.calls.append({
             "prompt": prompt,
             "cwd": cwd,
             "allowed_tools": allowed_tools,
             "append_system_prompt": append_system_prompt,
         })
-        events = [
-            StreamEvent(type="system", subtype="init", message={"model": "test-model"}),
-            StreamEvent(type="result", message={
-                "result": self.result_text,
-                "is_error": False,
-                "cost_usd": 0.01,
-                "input_tokens": 100,
-                "output_tokens": 50,
-                "duration_ms": 1000,
-            }),
-        ]
-        return (self.result_text, events, "test-session-id")
+        return (self.result_text, None)
+
+    def kill(self, delivery_id: str) -> bool:
+        return False
 
 
 class MockGitOperations:
@@ -99,7 +91,7 @@ def _create_delivery(uc, phase="intake", run_status="pending"):
 
 class TestGeneratePlan:
     @pytest.mark.asyncio
-    async def test_executes_runner_and_saves_transcript(self, uc, runner):
+    async def test_executes_runner_and_saves_result(self, uc, runner):
         result = _create_delivery(uc)
         plan_result = await uc.generate_plan(result["id"])
 
@@ -117,13 +109,6 @@ class TestGeneratePlan:
         assert delivery["plan"] is not None
         assert delivery["plan"]["content"] == "Generated plan content"
         assert len(delivery["runs"]) == 1
-
-    @pytest.mark.asyncio
-    async def test_uses_readonly_tools(self, uc, runner):
-        result = _create_delivery(uc)
-        await uc.generate_plan(result["id"])
-        assert runner.calls[0]["allowed_tools"] is not None
-        assert "Write" not in runner.calls[0]["allowed_tools"]
 
     @pytest.mark.asyncio
     async def test_clones_repo(self, uc, git_ops):
@@ -149,14 +134,14 @@ class TestGeneratePlan:
         delivery_repo, source_repo = repos
 
         class FailingRunner:
-            async def run_with_stream(
-                self,
-                prompt: str,
-                cwd: str,
-                allowed_tools: list[str] | None = None,
-                append_system_prompt: str | None = None,
-            ) -> tuple[str, list[StreamEvent], str | None]:
+            async def run(
+                self, prompt, cwd, allowed_tools=None,
+                append_system_prompt=None, delivery_id=None,
+            ):
                 raise RuntimeError("claude CLI timeout")
+
+            def kill(self, delivery_id):
+                return False
 
         uc = DeliveryUseCasesImpl(delivery_repo, FailingRunner(), git_ops, source_repo)
         result = _create_delivery(uc)
@@ -176,10 +161,14 @@ class TestGeneratePlan:
         delivery_repo, source_repo = repos
 
         class FailingRunner:
-            async def run_with_stream(
-                self, prompt, cwd, allowed_tools=None, append_system_prompt=None,
+            async def run(
+                self, prompt, cwd, allowed_tools=None,
+                append_system_prompt=None, delivery_id=None,
             ):
                 raise RuntimeError("fail")
+
+            def kill(self, delivery_id):
+                return False
 
         uc = DeliveryUseCasesImpl(delivery_repo, FailingRunner(), git_ops, source_repo)
         result = _create_delivery(uc)
@@ -190,11 +179,35 @@ class TestGeneratePlan:
         assert delivery_before["run_status"] == original_run_status
 
     @pytest.mark.asyncio
-    async def test_saves_transcript_file(self, uc):
+    async def test_run_without_session_file(self, uc):
+        """When session_id is None, run succeeds without saving transcript."""
         result = _create_delivery(uc)
         plan_result = await uc.generate_plan(result["id"])
+        assert plan_result["run_status"] == "succeeded"
+        # No transcript saved (mock returns session_id=None)
         transcript = uc.get_run_transcript(result["id"], plan_result["run_id"])
-        assert transcript is not None
+        assert transcript is None
+
+    @pytest.mark.asyncio
+    async def test_session_parse_failure_does_not_fail_run(self, repos, git_ops):
+        """If session file parsing raises, the run still succeeds."""
+        delivery_repo, source_repo = repos
+
+        class RunnerWithSessionId:
+            async def run(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
+                return ("Plan result", "bad-session-id")
+
+            def kill(self, delivery_id):
+                return False
+
+        uc = DeliveryUseCasesImpl(
+            delivery_repo, RunnerWithSessionId(), git_ops, source_repo,
+        )
+        result = _create_delivery(uc)
+        plan_result = await uc.generate_plan(result["id"])
+        # Session file won't be found, but run should still succeed
+        assert plan_result["run_status"] == "succeeded"
+        assert plan_result["result_text"] == "Plan result"
 
     @pytest.mark.asyncio
     async def test_appends_phase_runs(self, uc):
@@ -236,16 +249,6 @@ class TestRunImplement:
             await uc.run_implement(result["id"])
 
     @pytest.mark.asyncio
-    async def test_saves_transcript(self, uc):
-        result = _create_delivery(uc, phase="implement", run_status="pending")
-        uc.update_delivery(result["id"], DeliveryUpdate(
-            plan=Plan(content="plan", generated_at="2026-01-01T00:00:00", model="test", cwd="/tmp"),
-        ))
-        impl_result = await uc.run_implement(result["id"])
-        transcript = uc.get_run_transcript(result["id"], impl_result["run_id"])
-        assert transcript is not None
-
-    @pytest.mark.asyncio
     async def test_not_found(self, uc):
         result = await uc.run_implement("nonexist")
         assert result is None
@@ -253,13 +256,12 @@ class TestRunImplement:
 
 class TestRunReview:
     @pytest.mark.asyncio
-    async def test_executes_with_readonly_tools(self, uc, runner):
+    async def test_executes_runner(self, uc, runner):
         result = _create_delivery(uc, phase="review", run_status="pending")
         review_result = await uc.run_review(result["id"])
 
         assert review_result["run_status"] == "succeeded"
-        assert runner.calls[0]["allowed_tools"] is not None
-        assert "Write" not in runner.calls[0]["allowed_tools"]
+        assert len(runner.calls) == 1
 
     @pytest.mark.asyncio
     async def test_invalid_phase(self, uc):
@@ -271,13 +273,6 @@ class TestRunReview:
     async def test_not_found(self, uc):
         result = await uc.run_review("nonexist")
         assert result is None
-
-    @pytest.mark.asyncio
-    async def test_saves_transcript(self, uc):
-        result = _create_delivery(uc, phase="review", run_status="pending")
-        review_result = await uc.run_review(result["id"])
-        transcript = uc.get_run_transcript(result["id"], review_result["run_id"])
-        assert transcript is not None
 
 
 class TestRunFix:

@@ -5,6 +5,8 @@ import tempfile
 import uuid
 from datetime import datetime
 
+import structlog
+
 from app.domain.constants import KST, SCHEMA_VERSION, ID_HEX_LENGTH
 from app.domain.models.delivery import DeliveryCreate, DeliveryUpdate, Phase, RunStatus, ExecutorKind
 from app.domain.models.source import DEFAULT_CHECKPOINTS
@@ -14,10 +16,8 @@ from app.domain.prompts import (
     build_review_prompt,
     build_fix_prompt,
     PLAN_SYSTEM_PROMPT,
-    PLAN_ALLOWED_TOOLS,
     IMPLEMENT_SYSTEM_PROMPT,
     REVIEW_SYSTEM_PROMPT,
-    REVIEW_ALLOWED_TOOLS,
     FIX_SYSTEM_PROMPT,
 )
 from app.domain.services.session_parser import (
@@ -26,10 +26,13 @@ from app.domain.services.session_parser import (
     synthesize_result_event,
 )
 from app.domain.services.stream_parser import extract_metadata, extract_transcript
+from app.domain.models.stream import StreamMetadata
 from app.ports.outbound.delivery_repository import DeliveryRepository
 from app.ports.outbound.subprocess_runner import SubprocessRunner
 from app.ports.outbound.git_operations import GitOperations
 from app.ports.outbound.source_repository import SourceRepository
+
+logger = structlog.get_logger()
 
 FORWARD_TRANSITIONS: dict[str, str] = {
     "intake": "plan",
@@ -228,6 +231,7 @@ class DeliveryUseCasesImpl:
 
         delivery = copy.deepcopy(delivery)
         delivery["run_status"] = "running"
+        delivery.pop("error", None)
         delivery["updated_at"] = datetime.now(KST).isoformat()
         _append_phase_run(delivery, delivery["phase"], "running")
         self._repo.save_delivery(delivery_id, delivery)
@@ -238,15 +242,32 @@ class DeliveryUseCasesImpl:
 
         try:
             self._git.clone_repo(owner, repo_name, token, work_dir)
-            result_text, events, session_id = await self._runner.run_with_stream(
+            result_text, session_id = await self._runner.run(
                 prompt=prompt,
                 cwd=work_dir,
                 allowed_tools=allowed_tools,
                 append_system_prompt=system_prompt,
+                delivery_id=delivery_id,
             )
 
-            metadata = extract_metadata(events)
-            transcript = extract_transcript(events)
+            # Collect transcript and metadata from local session file
+            metadata = StreamMetadata(result_text=result_text)
+            transcript: dict = {}
+            if session_id:
+                try:
+                    session_file = find_session_file(session_id)
+                    if session_file:
+                        lines = session_file.read_text(encoding="utf-8").strip().splitlines()
+                        events = parse_session_lines(lines)
+                        result_event = synthesize_result_event(events)
+                        all_events = events + [result_event]
+                        metadata = extract_metadata(all_events)
+                        transcript = extract_transcript(all_events)
+                except (ValueError, OSError) as parse_err:
+                    logger.warning(
+                        "session file parsing failed, using CLI result only",
+                        session_id=session_id, error=str(parse_err),
+                    )
 
             run_id = uuid.uuid4().hex[:8]
             run = {
@@ -262,7 +283,7 @@ class DeliveryUseCasesImpl:
                     "duration_ms": metadata.duration_ms,
                 },
                 "session_id": session_id,
-                "summary": result_text[:200] if result_text else None,
+                "summary": metadata.result_text[:200] if metadata.result_text else None,
             }
 
             delivery.setdefault("runs", []).append(run)
@@ -270,14 +291,15 @@ class DeliveryUseCasesImpl:
             delivery["updated_at"] = datetime.now(KST).isoformat()
             _append_phase_run(delivery, delivery["phase"], "succeeded")
             self._repo.save_delivery(delivery_id, delivery)
-            self._repo.save_run_transcript(delivery_id, run_id, transcript)
+            if transcript:
+                self._repo.save_run_transcript(delivery_id, run_id, transcript)
 
             return {
                 "id": delivery_id,
                 "run_id": run_id,
                 "phase": delivery["phase"],
                 "run_status": "succeeded",
-                "result_text": result_text,
+                "result_text": metadata.result_text,
             }
         except Exception as e:
             delivery["run_status"] = "failed"
@@ -305,18 +327,13 @@ class DeliveryUseCasesImpl:
             )
 
         existing["phase"] = "plan"
-        prompt = build_plan_prompt(
-            summary=existing["summary"],
-            repository=existing["repository"],
-            refs=existing.get("refs", []),
-        )
+        prompt = build_plan_prompt(existing)
 
         result = await self._run_agent_phase(
             delivery=existing,
             delivery_id=delivery_id,
             prompt=prompt,
             mode="plan",
-            allowed_tools=PLAN_ALLOWED_TOOLS,
             system_prompt=PLAN_SYSTEM_PROMPT,
         )
 
@@ -347,14 +364,7 @@ class DeliveryUseCasesImpl:
                 f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
             )
 
-        plan_content = ""
-        if existing.get("plan"):
-            plan_content = existing["plan"].get("content", "")
-
-        prompt = build_implement_prompt(
-            plan_content=plan_content,
-            summary=existing["summary"],
-        )
+        prompt = build_implement_prompt(existing)
 
         return await self._run_agent_phase(
             delivery=existing,
@@ -374,14 +384,13 @@ class DeliveryUseCasesImpl:
                 f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
             )
 
-        prompt = build_review_prompt(summary=existing["summary"])
+        prompt = build_review_prompt(existing)
 
         return await self._run_agent_phase(
             delivery=existing,
             delivery_id=delivery_id,
             prompt=prompt,
             mode="review",
-            allowed_tools=REVIEW_ALLOWED_TOOLS,
             system_prompt=REVIEW_SYSTEM_PROMPT,
         )
 
@@ -395,7 +404,7 @@ class DeliveryUseCasesImpl:
                 f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
             )
 
-        prompt = build_fix_prompt(feedback=feedback, summary=existing["summary"])
+        prompt = build_fix_prompt(existing, feedback=feedback)
 
         return await self._run_agent_phase(
             delivery=existing,
@@ -424,11 +433,18 @@ class DeliveryUseCasesImpl:
         existing = self._repo.get_delivery(delivery_id)
         if existing is None:
             return None
-        existing["run_status"] = "canceled"
+        if existing["run_status"] != "running":
+            raise ValueError(
+                f"cancel: only allowed when run_status is 'running', got '{existing['run_status']}'"
+            )
+        if self._runner is not None:
+            self._runner.kill(delivery_id)
+        existing["run_status"] = "failed"
+        existing["error"] = "Canceled by user"
         existing["updated_at"] = datetime.now(KST).isoformat()
-        _append_phase_run(existing, existing["phase"], "canceled")
+        _append_phase_run(existing, existing["phase"], "failed")
         self._repo.save_delivery(delivery_id, existing)
-        return {"id": delivery_id, "phase": existing["phase"], "run_status": "canceled"}
+        return {"id": delivery_id, "phase": existing["phase"], "run_status": "failed"}
 
     def get_run_transcript(self, delivery_id: str, run_id: str) -> dict | None:
         return self._repo.get_run_transcript(delivery_id, run_id)

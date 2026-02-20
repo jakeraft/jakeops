@@ -1,105 +1,48 @@
 """Phase-specific prompt templates for agent execution.
 
-Prompts live here (not in adapters) because phase logic belongs in the
-use case / domain layer. The executor (SubprocessRunner) is phase-agnostic.
+JakeOps prompts follow a minimal principle: only pass the context that
+the system knows (issue summary, URL, plan content, feedback). Never
+tell the agent HOW to do its job — the agent's own capabilities and the
+user's usage handle that. This preserves the user's agent experience
+as if they invoked the agent directly.
+
+All builders take `delivery: dict` as the single source of context.
+Extra params (e.g. feedback) are for data that comes from the API call,
+not from the stored delivery.
 """
 
-PLAN_SYSTEM_PROMPT = (
-    "You are an agent that analyzes this codebase and produces an implementation plan. "
-    "Use read-only tools only. "
-    "You MUST end your response with a JSON block in this exact format:\n"
-    "```json\n"
-    '{"content": "full plan in Markdown", "target_files": ["path/to/file1.py", "path/to/file2.py"]}\n'
-    "```"
-)
+PLAN_SYSTEM_PROMPT = "Analyze this codebase and produce an implementation plan."
 
-PLAN_ALLOWED_TOOLS = ["Read", "Glob", "Grep", "LS"]
+REVIEW_SYSTEM_PROMPT = "Review the recent changes in this repository."
 
-REVIEW_SYSTEM_PROMPT = (
-    "You are a code review agent. Review changes for quality and correctness. "
-    "Use read-only tools only. "
-    "You MUST end your response with a JSON block in this exact format:\n"
-    "```json\n"
-    '{"verdict": "pass", "summary": "one-line summary", "feedback": ""}\n'
-    "```\n"
-    'verdict must be exactly "pass" or "not_pass". '
-    "When verdict is not_pass, feedback must contain actionable feedback for the author."
-)
+IMPLEMENT_SYSTEM_PROMPT = "Implement the changes described in the plan."
 
-REVIEW_ALLOWED_TOOLS = ["Read", "Glob", "Grep", "LS"]
-
-IMPLEMENT_SYSTEM_PROMPT = (
-    "You are a coding agent that implements changes based on a plan. "
-    "Use all available tools to write and test code."
-)
-
-FIX_SYSTEM_PROMPT = (
-    "You are a coding agent that fixes issues identified in code review. "
-    "Make minimal, targeted changes to address the feedback."
-)
+FIX_SYSTEM_PROMPT = "Fix the issues identified in the code review feedback."
 
 
-def build_plan_prompt(summary: str, repository: str, refs: list[dict]) -> str:
-    trigger_url = ""
-    for ref in refs:
+def _trigger_url(delivery: dict) -> str:
+    for ref in delivery.get("refs", []):
         if ref.get("role") == "trigger":
-            trigger_url = ref.get("url", "")
-            break
-
-    url_line = f"\nURL: {trigger_url}" if trigger_url else ""
-
-    return (
-        f"Analyze the codebase and generate an implementation plan.\n\n"
-        f"## Issue\n"
-        f"{summary}{url_line}\n"
-        f"Repository: {repository}\n\n"
-        f"## Instructions\n"
-        f"1. If a URL is provided, read the issue for full context.\n"
-        f"2. Explore the codebase and identify relevant files.\n"
-        f"3. Write the implementation plan in Markdown.\n"
-        f"4. Include target files, implementation order, and expected impact.\n"
-        f"5. End with a JSON block:\n"
-        f"```json\n"
-        f'{{"content": "full plan in Markdown", "target_files": ["path/to/file1.py", "path/to/file2.py"]}}\n'
-        f"```"
-    )
+            return ref.get("url", "")
+    return ""
 
 
-def build_implement_prompt(plan_content: str, summary: str) -> str:
-    return (
-        f"Implement the changes described in the plan below.\n\n"
-        f"## Summary\n{summary}\n\n"
-        f"## Plan\n{plan_content}\n\n"
-        f"## Instructions\n"
-        f"1. Follow the plan step by step.\n"
-        f"2. Write clean, well-tested code.\n"
-        f"3. Commit your changes with clear commit messages."
-    )
+def build_plan_prompt(delivery: dict) -> str:
+    url = _trigger_url(delivery)
+    url_line = f"\nURL: {url}" if url else ""
+    return f"{delivery['summary']}{url_line}"
 
 
-def build_review_prompt(summary: str) -> str:
-    return (
-        f"Review the recent changes in this repository.\n\n"
-        f"## Summary\n{summary}\n\n"
-        f"## Instructions\n"
-        f"1. Check the latest commits and changes.\n"
-        f"2. Review for code quality, bugs, security issues.\n"
-        f"3. End with a JSON block:\n"
-        f"```json\n"
-        f'{{"verdict": "pass", "summary": "one-line summary", "feedback": ""}}\n'
-        f"```\n"
-        f'verdict must be exactly "pass" or "not_pass". '
-        f"When verdict is not_pass, feedback must contain actionable feedback."
-    )
+def build_implement_prompt(delivery: dict) -> str:
+    plan_content = ""
+    if delivery.get("plan"):
+        plan_content = delivery["plan"].get("content", "")
+    return f"## Summary\n{delivery['summary']}\n\n## Plan\n{plan_content}"
 
 
-def build_fix_prompt(feedback: str, summary: str) -> str:
-    return (
-        f"Fix the issues identified in the code review.\n\n"
-        f"## Summary\n{summary}\n\n"
-        f"## Review Feedback\n{feedback}\n\n"
-        f"## Instructions\n"
-        f"1. Address each issue identified in the review.\n"
-        f"2. Make minimal, targeted fixes.\n"
-        f"3. Commit your changes with clear commit messages."
-    )
+def build_review_prompt(delivery: dict) -> str:
+    return delivery["summary"]
+
+
+def build_fix_prompt(delivery: dict, feedback: str = "") -> str:
+    return f"## Summary\n{delivery['summary']}\n\n## Feedback\n{feedback}"
