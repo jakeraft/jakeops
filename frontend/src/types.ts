@@ -1,0 +1,156 @@
+// Phase pipeline
+export type Phase =
+  | "intake"
+  | "plan"
+  | "implement"
+  | "review"
+  | "verify"
+  | "deploy"
+  | "observe"
+  | "close"
+
+export type RunStatus =
+  | "pending"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "blocked"
+  | "canceled"
+
+export type ExecutorKind = "system" | "agent" | "human"
+
+// Refs
+export type RefRole = "trigger" | "output" | "parent"
+export type RefType =
+  | "jira"
+  | "verbal"
+  | "pr"
+  | "commit"
+  | "repo"
+  | "github_issue"
+  | "pull_request"
+  | "issue"
+
+export interface Ref {
+  role: RefRole
+  type: RefType
+  label: string
+  url?: string
+}
+
+// Phase run history
+export interface PhaseRun {
+  phase: Phase
+  run_status: RunStatus
+  executor: ExecutorKind
+  started_at?: string
+  ended_at?: string
+}
+
+// Agent execution
+export interface ExecutionStats {
+  cost_usd: number
+  input_tokens: number
+  output_tokens: number
+  duration_ms: number
+}
+
+export interface AgentRun {
+  id: string
+  mode: "plan" | "execution" | "fix"
+  status: "success" | "failed"
+  created_at: string
+  session: { model: string }
+  stats: ExecutionStats
+  error?: string
+  summary?: string
+  session_id?: string
+}
+
+// Plan
+export interface Plan {
+  content: string
+  generated_at: string
+  model: string
+  cwd: string
+}
+
+// Delivery
+export interface Delivery {
+  id: string
+  schema_version: number
+  created_at: string
+  updated_at: string
+  phase: Phase
+  run_status: RunStatus
+  exit_phase: Phase
+  summary: string
+  repository: string
+  refs: Ref[]
+  runs: AgentRun[]
+  phase_runs: PhaseRun[]
+  plan?: Plan
+  error?: string
+}
+
+// Source
+export type SourceType = "github"
+
+export interface Source {
+  id: string
+  type: SourceType
+  owner: string
+  repo: string
+  created_at: string
+  token: string
+  active: boolean
+  default_exit_phase: string
+}
+
+export interface SourceCreate {
+  type: SourceType
+  owner: string
+  repo: string
+  token?: string
+  default_exit_phase?: string
+}
+
+export interface SourceUpdate {
+  token?: string
+  active?: boolean
+  default_exit_phase?: string
+}
+
+// Worker
+export interface WorkerStatus {
+  name: string
+  label: string
+  enabled: boolean
+  interval_sec: number
+  last_poll_at?: string
+  last_result?: Record<string, unknown>
+  last_error?: string
+}
+
+// Transcript
+export interface TranscriptBlock {
+  type: string
+  text?: string
+  thinking?: string
+  name?: string
+  input?: Record<string, unknown>
+  content?: unknown
+  tool_use_id?: string
+}
+
+export interface TranscriptMessage {
+  role: string
+  content: TranscriptBlock[] | string | null
+}
+
+export interface TranscriptData {
+  meta: {
+    agents: Record<string, { model: string }>
+  }
+  [agentKey: string]: TranscriptMessage[] | { agents: Record<string, { model: string }> }
+}
