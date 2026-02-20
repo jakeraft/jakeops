@@ -27,7 +27,7 @@ class TestStreamingIntegration:
         body = DeliveryCreate(
             phase="plan", run_status="pending",
             summary="Test", repository="owner/repo",
-            refs=[{"role": "trigger", "type": "github_issue", "label": "#1",
+            refs=[{"role": "request", "type": "github_issue", "label": "#1",
                    "url": "https://github.com/owner/repo/issues/1"}],
         )
         result = uc.create_delivery(body)
@@ -51,7 +51,7 @@ class TestStreamingIntegration:
         body = DeliveryCreate(
             phase="plan", run_status="pending",
             summary="Test metadata", repository="owner/repo",
-            refs=[{"role": "trigger", "type": "github_issue", "label": "#2",
+            refs=[{"role": "request", "type": "github_issue", "label": "#2",
                    "url": "https://github.com/owner/repo/issues/2"}],
         )
         result = uc.create_delivery(body)

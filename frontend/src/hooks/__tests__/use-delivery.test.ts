@@ -13,7 +13,7 @@ const MOCK_DELIVERY = {
   repository: "owner/repo",
   refs: [
     {
-      role: "trigger",
+      role: "request",
       type: "github_issue",
       label: "#42",
       url: "https://github.com/test/repo/issues/42",

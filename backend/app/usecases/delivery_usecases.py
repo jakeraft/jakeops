@@ -315,7 +315,6 @@ class DeliveryUseCasesImpl:
         prev_phase = REJECT_TRANSITIONS[current_phase]
         existing["phase"] = prev_phase
         existing["run_status"] = "pending"
-        existing["reject_reason"] = reason
         existing["updated_at"] = datetime.now(KST).isoformat()
         _append_phase_run(existing, prev_phase, "pending")
         self._repo.save_delivery(delivery_id, existing)
@@ -436,7 +435,6 @@ class DeliveryUseCasesImpl:
 
             delivery.setdefault("runs", []).append(run)
             delivery["run_status"] = "succeeded"
-            delivery.pop("reject_reason", None)
             delivery["updated_at"] = datetime.now(KST).isoformat()
             _append_phase_run(delivery, delivery["phase"], "succeeded")
             self._repo.save_delivery(delivery_id, delivery)

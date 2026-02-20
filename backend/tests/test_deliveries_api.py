@@ -9,7 +9,7 @@ VALID_DELIVERY = {
     "run_status": "pending",
     "summary": "test delivery",
     "repository": "jakeops",
-    "refs": [{"role": "trigger", "type": "github_issue", "label": "#1"}],
+    "refs": [{"role": "request", "type": "github_issue", "label": "#1"}],
 }
 
 

@@ -94,7 +94,7 @@ class TestDeliveryCreate:
             summary="Fix login bug",
             repository="owner/repo",
             refs=[
-                Ref(role=RefRole.trigger, type=RefType.jira, label="PROJ-123"),
+                Ref(role=RefRole.request, type=RefType.jira, label="PROJ-123"),
             ],
         )
         assert delivery.phase == Phase.intake
@@ -175,14 +175,14 @@ class TestRef:
     def test_url_optional(self):
         from app.domain.models.delivery import Ref, RefRole, RefType
 
-        ref = Ref(role=RefRole.trigger, type=RefType.jira, label="PROJ-123")
+        ref = Ref(role=RefRole.request, type=RefType.jira, label="PROJ-123")
         assert ref.url is None
 
     def test_with_url(self):
         from app.domain.models.delivery import Ref, RefRole, RefType
 
         ref = Ref(
-            role=RefRole.output,
+            role=RefRole.work,
             type=RefType.pr,
             label="PR #42",
             url="https://github.com/owner/repo/pull/42",

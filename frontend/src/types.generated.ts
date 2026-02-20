@@ -15,8 +15,8 @@ export const EXECUTOR_KINDS = ["system", "agent"] as const
 export type Verdict = "pass" | "not_pass"
 export const VERDICTS = ["pass", "not_pass"] as const
 
-export type RefRole = "trigger" | "output" | "parent"
-export const REF_ROLES = ["trigger", "output", "parent"] as const
+export type RefRole = "request" | "work" | "parent"
+export const REF_ROLES = ["request", "work", "parent"] as const
 
 export type RefType = "jira" | "verbal" | "pr" | "commit" | "repo" | "github_issue" | "pull_request" | "issue"
 export const REF_TYPES = ["jira", "verbal", "pr", "commit", "repo", "github_issue", "pull_request", "issue"] as const
@@ -24,8 +24,8 @@ export const REF_TYPES = ["jira", "verbal", "pr", "commit", "repo", "github_issu
 export type SourceType = "github"
 export const SOURCE_TYPES = ["github"] as const
 
-export type AgentRunMode = "plan" | "execution" | "fix"
-export const AGENT_RUN_MODES = ["plan", "execution", "fix"] as const
+export type AgentRunMode = "plan" | "execution"
+export const AGENT_RUN_MODES = ["plan", "execution"] as const
 
 export type AgentRunStatus = "success" | "failed"
 export const AGENT_RUN_STATUSES = ["success", "failed"] as const

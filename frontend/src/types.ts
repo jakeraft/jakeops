@@ -53,7 +53,6 @@ export interface Delivery {
   phase_runs: PhaseRun[]
   plan?: Plan
   error?: string
-  reject_reason?: string
 }
 
 // Transcript — frontend-only representation

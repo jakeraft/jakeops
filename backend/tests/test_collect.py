@@ -19,7 +19,7 @@ def delivery_id(client):
         "run_status": "pending",
         "summary": "test delivery",
         "repository": "owner/repo",
-        "refs": [{"role": "trigger", "type": "github_issue", "label": "#1"}],
+        "refs": [{"role": "request", "type": "github_issue", "label": "#1"}],
     }
     resp = client.post("/api/deliveries", json=body)
     return resp.json()["id"]

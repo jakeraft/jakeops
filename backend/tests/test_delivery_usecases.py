@@ -18,7 +18,7 @@ def _create_delivery(usecases, phase="intake", run_status="pending", endpoint=No
         endpoint=endpoint,
         summary="test",
         repository="jakeops",
-        refs=[{"role": "trigger", "type": "github_issue", "label": "#1"}],
+        refs=[{"role": "request", "type": "github_issue", "label": "#1"}],
     )
     return usecases.create_delivery(body)
 
@@ -85,7 +85,7 @@ class TestCRUD:
         body2 = DeliveryCreate(
             summary="second",
             repository="jakeops",
-            refs=[{"role": "trigger", "type": "github_issue", "label": "#2"}],
+            refs=[{"role": "request", "type": "github_issue", "label": "#2"}],
         )
         r2 = usecases.create_delivery(body2)
         d2 = usecases.get_delivery(r2["id"])
@@ -188,12 +188,6 @@ class TestReject:
         result = _create_delivery(usecases, phase="intake", run_status="pending")
         with pytest.raises(ValueError, match="reject"):
             usecases.reject(result["id"], reason="x")
-
-    def test_reject_stores_reason(self, usecases):
-        result = _create_delivery(usecases, phase="review", run_status="succeeded")
-        usecases.reject(result["id"], reason="Code quality issues")
-        delivery = usecases.get_delivery(result["id"])
-        assert delivery["reject_reason"] == "Code quality issues"
 
     def test_reject_appends_phase_run(self, usecases):
         result = _create_delivery(usecases, phase="plan", run_status="succeeded")

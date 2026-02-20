@@ -92,7 +92,7 @@ def _create_delivery(uc, phase="plan", run_status="pending"):
         run_status=run_status,
         summary="Fix login bug",
         repository="owner/repo",
-        refs=[{"role": "trigger", "type": "github_issue", "label": "#1",
+        refs=[{"role": "request", "type": "github_issue", "label": "#1",
                "url": "https://github.com/owner/repo/issues/1"}],
     )
     return uc.create_delivery(body)
@@ -234,21 +234,6 @@ class TestGeneratePlan:
         assert ("plan", "succeeded") in phases
 
 
-class TestRejectReasonCleanup:
-    @pytest.mark.asyncio
-    async def test_clears_reject_reason_on_success(self, uc):
-        result = _create_delivery(uc, phase="implement", run_status="pending")
-        delivery_id = result["id"]
-        # Simulate a reject_reason being set
-        delivery = uc.get_delivery(delivery_id)
-        delivery["reject_reason"] = "Missing error handling"
-        uc._repo.save_delivery(delivery_id, delivery)
-
-        await uc.run_implement(delivery_id)
-        delivery = uc.get_delivery(delivery_id)
-        assert "reject_reason" not in delivery
-
-
 class TestRunImplement:
     @pytest.mark.asyncio
     async def test_executes_runner_with_plan_context(self, uc, runner):
@@ -261,7 +246,7 @@ class TestRunImplement:
 
         assert impl_result["run_status"] == "succeeded"
         assert len(runner.calls) == 1
-        assert "## Steps" in runner.calls[0]["prompt"]
+        assert "Fix login bug" in runner.calls[0]["prompt"]
         # No tool restrictions for implement
         assert runner.calls[0]["allowed_tools"] is None
 
@@ -288,7 +273,7 @@ class TestRunImplement:
         delivery_id = result["id"]
         # Add output:pr ref to simulate draft PR creation
         uc.update_delivery(delivery_id, DeliveryUpdate(
-            refs=[{"role": "output", "type": "pr", "label": "Draft PR",
+            refs=[{"role": "work", "type": "pr", "label": "Draft PR",
                    "url": "https://github.com/owner/repo/pull/1"}],
         ))
         await uc.run_implement(delivery_id)
@@ -327,7 +312,7 @@ class TestRunReview:
         result = _create_delivery(uc, phase="review", run_status="pending")
         delivery_id = result["id"]
         uc.update_delivery(delivery_id, DeliveryUpdate(
-            refs=[{"role": "output", "type": "pr", "label": "Draft PR",
+            refs=[{"role": "work", "type": "pr", "label": "Draft PR",
                    "url": "https://github.com/owner/repo/pull/1"}],
         ))
         await uc.run_review(delivery_id)

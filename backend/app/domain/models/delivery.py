@@ -104,4 +104,3 @@ class DeliveryUpdate(BaseModel):
     plan: Plan | None = None
     refs: list[Ref] | None = None
     error: str | None = None
-    reject_reason: str | None = None
