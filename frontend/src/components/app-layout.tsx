@@ -24,7 +24,7 @@ export function AppLayout() {
     >
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-12 items-center border-b px-4">
+        <header className="flex h-12 items-center border-b bg-sidebar px-4">
           <span className="text-lg font-semibold">{title}</span>
         </header>
         <main className="flex-1 p-4">
