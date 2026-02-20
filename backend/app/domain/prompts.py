@@ -9,11 +9,23 @@ Never tell the agent HOW to do its job.
 All builders take `delivery: dict` as the single source of context.
 """
 
-PLAN_SYSTEM_PROMPT = "Analyze this codebase and produce an implementation plan."
+_NON_INTERACTIVE = (
+    "You are running non-interactively in a CI pipeline. "
+    "Do NOT ask questions, request clarification, or present options. "
+    "Complete the task fully and return the result directly."
+)
 
-REVIEW_SYSTEM_PROMPT = "Review the recent changes in this repository."
+PLAN_SYSTEM_PROMPT = (
+    f"Analyze this codebase and produce an implementation plan. {_NON_INTERACTIVE}"
+)
 
-IMPLEMENT_SYSTEM_PROMPT = "Implement the changes described in the plan."
+REVIEW_SYSTEM_PROMPT = (
+    f"Review the recent changes in this repository. {_NON_INTERACTIVE}"
+)
+
+IMPLEMENT_SYSTEM_PROMPT = (
+    f"Implement the changes described in the plan. {_NON_INTERACTIVE}"
+)
 
 
 def _collect_ref_urls(delivery: dict, role: str | None = None) -> list[str]:
