@@ -90,14 +90,4 @@ describe("useSources", () => {
     expect(api.apiFetch).toHaveBeenCalledTimes(2)
   })
 
-  it("syncNow posts to /sources/sync and refreshes", async () => {
-    const { result } = renderHook(() => useSources())
-    await waitFor(() => expect(result.current.loading).toBe(false))
-
-    await act(async () => {
-      await result.current.syncNow()
-    })
-    expect(api.apiPost).toHaveBeenCalledWith("/sources/sync")
-    expect(api.apiFetch).toHaveBeenCalledTimes(2)
-  })
 })

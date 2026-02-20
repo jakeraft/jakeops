@@ -45,17 +45,14 @@ const ACTION_CONFIG: Record<string, { className: string }> = {
 function ActionCell({
   delivery,
   onAction,
-  busyId,
 }: {
   delivery: Delivery
   onAction: (d: Delivery, action: ActionKind) => void
-  busyId: string | null
 }) {
   const action = getNextAction(delivery.phase, delivery.run_status)
   if (!action) return <span className="text-muted-foreground">—</span>
 
   const config = ACTION_CONFIG[action]
-  const isBusy = busyId === delivery.id
   const label = action === "run-agent"
     ? (AGENT_ACTION_LABELS[delivery.phase] ?? "Run Agent")
     : action === "approve" ? "Approve" : "Cancel"
@@ -65,17 +62,15 @@ function ActionCell({
       <Button
         size="sm"
         className={`h-7 text-xs ${config.className}`}
-        disabled={isBusy}
         onClick={(e) => { e.stopPropagation(); onAction(delivery, action) }}
       >
-        {isBusy ? "..." : label}
+        {label}
       </Button>
       {action === "approve" && (
         <Button
           size="sm"
           variant="outline"
           className="h-7 text-xs border-red-300 text-red-700 hover:bg-red-50"
-          disabled={isBusy}
           onClick={(e) => { e.stopPropagation(); onAction(delivery, "reject") }}
         >
           Reject
@@ -88,11 +83,9 @@ function ActionCell({
 function DeliveryTable({
   deliveries,
   onAction,
-  busyId,
 }: {
   deliveries: Delivery[]
   onAction: (d: Delivery, action: ActionKind) => void
-  busyId: string | null
 }) {
   const navigate = useNavigate()
 
@@ -139,7 +132,7 @@ function DeliveryTable({
               <RunStatusBadge status={d.run_status} animate />
             </TableCell>
             <TableCell>
-              <ActionCell delivery={d} onAction={onAction} busyId={busyId} />
+              <ActionCell delivery={d} onAction={onAction} />
             </TableCell>
             <TableCell className="text-muted-foreground">
               {formatRelativeTime(d.updated_at)}
@@ -155,7 +148,17 @@ export function DeliveryList() {
   const [searchParams] = useSearchParams()
   const defaultTab = searchParams.get("tab") === "closed" ? "closed" : "active"
   const { deliveries, loading, error, refresh, updateOne } = useDeliveries()
-  const [busyId, setBusyId] = useState<string | null>(null)
+  const [syncing, setSyncing] = useState(false)
+
+  async function handleSync() {
+    setSyncing(true)
+    try {
+      await apiPost("/sources/sync")
+      await refresh()
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const { active, closed } = useMemo(() => {
     const active: Delivery[] = []
@@ -172,7 +175,6 @@ export function DeliveryList() {
 
   async function handleAction(d: Delivery, action: ActionKind) {
     if (!action) return
-    setBusyId(d.id)
     try {
       switch (action) {
         case "run-agent":
@@ -193,7 +195,6 @@ export function DeliveryList() {
           break
       }
     } finally {
-      setBusyId(null)
       await refresh()
     }
   }
@@ -206,21 +207,27 @@ export function DeliveryList() {
     return <p className="p-4 text-destructive">Error: {error}</p>
   }
 
-  if (deliveries.length === 0) {
-    return <p className="p-4 text-muted-foreground">No deliveries yet.</p>
-  }
-
   return (
     <Tabs defaultValue={defaultTab}>
-      <TabsList>
-        <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
-        <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
-      </TabsList>
+      <div className="flex items-center justify-between">
+        <TabsList>
+          <TabsTrigger value="active">Active ({active.length})</TabsTrigger>
+          <TabsTrigger value="closed">Closed ({closed.length})</TabsTrigger>
+        </TabsList>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={syncing}
+          onClick={handleSync}
+        >
+          {syncing ? "Syncing..." : "Sync"}
+        </Button>
+      </div>
       <TabsContent value="active">
-        <DeliveryTable deliveries={active} onAction={handleAction} busyId={busyId} />
+        <DeliveryTable deliveries={active} onAction={handleAction} />
       </TabsContent>
       <TabsContent value="closed">
-        <DeliveryTable deliveries={closed} onAction={handleAction} busyId={busyId} />
+        <DeliveryTable deliveries={closed} onAction={handleAction} />
       </TabsContent>
     </Tabs>
   )

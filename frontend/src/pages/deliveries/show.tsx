@@ -99,7 +99,6 @@ const AGENT_BUTTON_LABELS: Record<string, string> = {
 function ActionButtons({
   phase,
   runStatus,
-  disabled,
   onApprove,
   onReject,
   onCancel,
@@ -107,7 +106,6 @@ function ActionButtons({
 }: {
   phase: Phase
   runStatus: RunStatus
-  disabled: boolean
   onApprove: () => void
   onReject: (reason: string) => void
   onCancel: () => void
@@ -118,7 +116,7 @@ function ActionButtons({
   if (runStatus === "running") {
     return (
       <div className="flex gap-2 flex-wrap">
-        <Button variant="destructive" disabled={disabled} onClick={onCancel}>
+        <Button variant="destructive" onClick={onCancel}>
           Cancel
         </Button>
       </div>
@@ -131,16 +129,16 @@ function ActionButtons({
   return (
     <div className="flex gap-2 flex-wrap">
       {canRunAgent && (
-        <Button className="bg-violet-600 hover:bg-violet-700" disabled={disabled} onClick={onRunAgent}>
+        <Button className="bg-violet-600 hover:bg-violet-700" onClick={onRunAgent}>
           {AGENT_BUTTON_LABELS[phase] ?? "Run Agent"}
         </Button>
       )}
       {canApproveReject && (
         <>
-          <Button className="bg-blue-600 hover:bg-blue-700" disabled={disabled} onClick={onApprove}>
+          <Button className="bg-blue-600 hover:bg-blue-700" onClick={onApprove}>
             Approve
           </Button>
-          <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" disabled={disabled} onClick={() => setRejectOpen(true)}>
+          <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => setRejectOpen(true)}>
             Reject
           </Button>
           <RejectDialog
@@ -380,7 +378,6 @@ export function DeliveryShow() {
     loading,
     error,
     actionError,
-    actionPending,
     clearActionError,
     approve,
     reject,
@@ -436,7 +433,6 @@ export function DeliveryShow() {
       <ActionButtons
         phase={delivery.phase}
         runStatus={delivery.run_status}
-        disabled={actionPending}
         onApprove={approve}
         onReject={reject}
         onCancel={cancel}
@@ -446,7 +442,7 @@ export function DeliveryShow() {
       <Separator />
 
       {/* Error — hide while running since it's stale from a previous run */}
-      {delivery.error && delivery.run_status !== "running" && !actionPending && (
+      {delivery.error && delivery.run_status !== "running" && (
         <ErrorBox message={delivery.error} />
       )}
 

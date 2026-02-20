@@ -48,11 +48,6 @@ export function useSources() {
     [refresh],
   )
 
-  const syncNow = useCallback(async () => {
-    await apiPost("/sources/sync")
-    await refresh()
-  }, [refresh])
-
   return {
     sources,
     loading,
@@ -61,6 +56,5 @@ export function useSources() {
     createSource,
     updateSource,
     deleteSource,
-    syncNow,
   }
 }

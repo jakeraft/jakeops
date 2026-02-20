@@ -8,7 +8,6 @@ export function useDelivery(id: string | undefined) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [actionPending, setActionPending] = useState(false)
 
   const refresh = useCallback(async () => {
     if (!id) return
@@ -32,7 +31,6 @@ export function useDelivery(id: string | undefined) {
   const performAction = useCallback(
     async (action: () => Promise<unknown>) => {
       setActionError(null)
-      setActionPending(true)
       try {
         await action()
         await refresh()
@@ -42,8 +40,6 @@ export function useDelivery(id: string | undefined) {
         setActionError(message)
         await refresh()
         throw e
-      } finally {
-        setActionPending(false)
       }
     },
     [id, refresh],
@@ -84,7 +80,6 @@ export function useDelivery(id: string | undefined) {
     loading,
     error,
     actionError,
-    actionPending,
     clearActionError: useCallback(() => setActionError(null), []),
     refresh,
     approve,
