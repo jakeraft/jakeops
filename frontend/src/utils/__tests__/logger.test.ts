@@ -51,7 +51,7 @@ describe("logger in dev mode", () => {
 
 describe("logger in prod mode", () => {
   beforeEach(() => {
-    vi.stubEnv("DEV", "")
+    vi.stubEnv("DEV", false)
   })
 
   afterEach(() => {

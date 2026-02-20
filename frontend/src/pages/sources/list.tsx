@@ -145,7 +145,15 @@ function SourceFormDialog({
             {isEdit && (
               <div className="flex items-center gap-3">
                 <Switch checked={active} onCheckedChange={setActive} />
-                <Label>Active</Label>
+                <Badge variant="secondary" className={active ? "bg-green-100 text-green-700" : ""}>
+                  {active && source?.last_polled_at && (
+                    <span className="relative mr-1.5 flex size-2">
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-400 opacity-75" />
+                      <span className="relative inline-flex size-2 rounded-full bg-green-500" />
+                    </span>
+                  )}
+                  {active ? "synced" : "inactive"}
+                </Badge>
               </div>
             )}
             <div className="grid gap-2">
@@ -287,8 +295,14 @@ export function SourceList() {
                 </TableCell>
                 <TableCell>{s.type}</TableCell>
                 <TableCell>
-                  <Badge variant={s.active ? "default" : "secondary"}>
-                    {s.active ? "active" : "inactive"}
+                  <Badge variant="secondary" className={s.active ? "bg-green-100 text-green-700" : ""}>
+                    {s.active && s.last_polled_at && (
+                      <span className="relative mr-1.5 flex size-2">
+                        <span className="absolute inline-flex size-full animate-ping rounded-full bg-green-400 opacity-75" />
+                        <span className="relative inline-flex size-2 rounded-full bg-green-500" />
+                      </span>
+                    )}
+                    {s.active ? "synced" : "inactive"}
                   </Badge>
                 </TableCell>
                 <TableCell>
