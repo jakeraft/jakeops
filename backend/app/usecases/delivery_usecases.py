@@ -9,9 +9,14 @@ from app.domain.models.delivery import DeliveryCreate, DeliveryUpdate, Phase, Ru
 from app.domain.prompts import (
     build_plan_prompt,
     build_implement_prompt,
+    build_review_prompt,
+    build_fix_prompt,
     PLAN_SYSTEM_PROMPT,
     PLAN_ALLOWED_TOOLS,
     IMPLEMENT_SYSTEM_PROMPT,
+    REVIEW_SYSTEM_PROMPT,
+    REVIEW_ALLOWED_TOOLS,
+    FIX_SYSTEM_PROMPT,
 )
 from app.domain.services.session_parser import (
     find_session_file,
@@ -324,6 +329,47 @@ class DeliveryUseCasesImpl:
             prompt=prompt,
             mode="implement",
             system_prompt=IMPLEMENT_SYSTEM_PROMPT,
+        )
+
+    async def run_review(self, delivery_id: str) -> dict | None:
+        existing = self._repo.get_delivery(delivery_id)
+        if existing is None:
+            return None
+        if existing["phase"] != "review" or existing["run_status"] != "pending":
+            raise ValueError(
+                f"run_review: requires phase='review' and run_status='pending', "
+                f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
+            )
+
+        prompt = build_review_prompt(summary=existing["summary"])
+
+        return await self._run_agent_phase(
+            delivery=existing,
+            delivery_id=delivery_id,
+            prompt=prompt,
+            mode="review",
+            allowed_tools=REVIEW_ALLOWED_TOOLS,
+            system_prompt=REVIEW_SYSTEM_PROMPT,
+        )
+
+    async def run_fix(self, delivery_id: str, feedback: str = "") -> dict | None:
+        existing = self._repo.get_delivery(delivery_id)
+        if existing is None:
+            return None
+        if existing["phase"] != "implement" or existing["run_status"] != "pending":
+            raise ValueError(
+                f"run_fix: requires phase='implement' and run_status='pending', "
+                f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
+            )
+
+        prompt = build_fix_prompt(feedback=feedback, summary=existing["summary"])
+
+        return await self._run_agent_phase(
+            delivery=existing,
+            delivery_id=delivery_id,
+            prompt=prompt,
+            mode="fix",
+            system_prompt=FIX_SYSTEM_PROMPT,
         )
 
     def retry(self, delivery_id: str) -> dict | None:

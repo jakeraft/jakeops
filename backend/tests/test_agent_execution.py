@@ -227,3 +227,55 @@ class TestRunImplement:
     async def test_not_found(self, uc):
         result = await uc.run_implement("nonexist")
         assert result is None
+
+
+class TestRunReview:
+    @pytest.mark.asyncio
+    async def test_executes_with_readonly_tools(self, uc, runner):
+        result = _create_delivery(uc, phase="review", run_status="pending")
+        review_result = await uc.run_review(result["id"])
+
+        assert review_result["run_status"] == "succeeded"
+        assert runner.calls[0]["allowed_tools"] is not None
+        assert "Write" not in runner.calls[0]["allowed_tools"]
+
+    @pytest.mark.asyncio
+    async def test_invalid_phase(self, uc):
+        result = _create_delivery(uc, phase="implement", run_status="pending")
+        with pytest.raises(ValueError, match="run_review"):
+            await uc.run_review(result["id"])
+
+    @pytest.mark.asyncio
+    async def test_not_found(self, uc):
+        result = await uc.run_review("nonexist")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_saves_transcript(self, uc):
+        result = _create_delivery(uc, phase="review", run_status="pending")
+        review_result = await uc.run_review(result["id"])
+        transcript = uc.get_run_transcript(result["id"], review_result["run_id"])
+        assert transcript is not None
+
+
+class TestRunFix:
+    @pytest.mark.asyncio
+    async def test_executes_with_feedback(self, uc, runner):
+        result = _create_delivery(uc, phase="implement", run_status="pending")
+        fix_result = await uc.run_fix(result["id"], feedback="Missing error handling")
+
+        assert fix_result["run_status"] == "succeeded"
+        assert "Missing error handling" in runner.calls[0]["prompt"]
+        # fix gets all tools (no restrictions)
+        assert runner.calls[0]["allowed_tools"] is None
+
+    @pytest.mark.asyncio
+    async def test_invalid_phase(self, uc):
+        result = _create_delivery(uc, phase="review", run_status="pending")
+        with pytest.raises(ValueError, match="run_fix"):
+            await uc.run_fix(result["id"])
+
+    @pytest.mark.asyncio
+    async def test_not_found(self, uc):
+        result = await uc.run_fix("nonexist")
+        assert result is None
