@@ -23,8 +23,8 @@ logger = structlog.get_logger()
 def extract_metadata(events: list[StreamEvent]) -> StreamMetadata:
     """Extract metadata from init + result events.
 
-    Raises:
-        ValueError: if result event is missing or result_text is empty
+    When a result event is missing (e.g. CLI cancelled or crashed),
+    falls back to assembling result_text from assistant text blocks.
     """
     meta = StreamMetadata()
     has_result = False
@@ -45,11 +45,37 @@ def extract_metadata(events: list[StreamEvent]) -> StreamMetadata:
             meta.is_success = not ev.message.get("is_error", True)
 
     if not has_result:
-        raise ValueError("stream has no result event — Claude CLI output is invalid")
+        logger.warning(
+            "stream has no result event — falling back to assistant text",
+            event_count=len(events),
+            event_types=[ev.type for ev in events[-5:]],
+        )
+        meta.result_text = _assemble_result_text(events)
+        meta.is_success = bool(meta.result_text)
+
     if not meta.result_text:
-        raise ValueError("result_text is empty — Claude CLI returned an empty result")
+        meta.result_text = "(no output captured)"
 
     return meta
+
+
+def _assemble_result_text(events: list[StreamEvent]) -> str:
+    """Build result_text from the last assistant message text blocks."""
+    parts: list[str] = []
+    for ev in reversed(events):
+        if ev.type != "assistant" or not ev.message:
+            continue
+        content = ev.message.get("content")
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                text = block.get("text", "")
+                if text:
+                    parts.append(text)
+        if parts:
+            break
+    return "\n".join(reversed(parts))
 
 
 def extract_transcript(events: list[StreamEvent]) -> dict[str, Any]:

@@ -80,11 +80,24 @@ class TestExtractMetadata:
         assert meta.output_tokens == 500
         assert meta.duration_ms == 30000
 
-    def test_raises_when_no_result_event(self):
-        """Raises ValueError when no result event is present."""
-        events = [StreamEvent(type="assistant", message={})]
-        with pytest.raises(ValueError, match="stream has no result event"):
-            extract_metadata(events)
+    def test_fallback_when_no_result_event(self):
+        """Falls back to assistant text when no result event is present."""
+        events = [
+            StreamEvent(type="assistant", message={
+                "content": [{"type": "text", "text": "Here is the plan."}],
+            }),
+        ]
+        meta = extract_metadata(events)
+        assert meta.result_text == "Here is the plan."
+        assert meta.is_success is True
+        assert meta.cost_usd == 0.0
+
+    def test_fallback_when_no_result_and_no_text(self):
+        """Returns placeholder when no result event and no assistant text."""
+        events = [StreamEvent(type="system", subtype="init", message={"model": "test"})]
+        meta = extract_metadata(events)
+        assert meta.result_text == "(no output captured)"
+        assert meta.is_success is False
 
     def test_error_result(self):
         events = [
@@ -97,15 +110,15 @@ class TestExtractMetadata:
         assert meta.result_text == "Error occurred"
         assert meta.cost_usd == 0.01
 
-    def test_raises_when_result_text_empty(self):
-        """Raises ValueError when result_text is an empty string."""
+    def test_empty_result_text_gets_placeholder(self):
+        """Empty result_text gets replaced with placeholder."""
         events = [
             StreamEvent(type="result", subtype="success", message={
                 "result": "", "is_error": False,
             }),
         ]
-        with pytest.raises(ValueError, match="result_text is empty"):
-            extract_metadata(events)
+        meta = extract_metadata(events)
+        assert meta.result_text == "(no output captured)"
 
 
 class TestParseStreamLinesWarning:
