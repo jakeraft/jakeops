@@ -1,0 +1,84 @@
+# -----------------------------------------------------------------------------
+# Based on official templates from github/gitignore:
+# - Python.gitignore
+# - Node.gitignore
+# - Global/macOS.gitignore
+# Plus JakeOps-specific rules.
+# -----------------------------------------------------------------------------
+
+# Python
+__pycache__/
+*.py[codz]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.venv
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+.env
+.envrc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# Node / JS / TS
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+node_modules/
+*.tsbuildinfo
+.npm
+.eslintcache
+*.tgz
+.env.*
+!.env.example
+.pnpm-store
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.next
+.nuxt
+dist
+.output
+.vite/
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# OS
+.DS_Store
+__MACOSX/
+._*
+Thumbs.db
+
+# IDE / Editor
+.idea/
+.vscode/
+.vscode-test
+
+# Repository-specific runtime/generated data
+/issues/
+/sources/
+/reports/
+/skills/
+/rules/
+/subscriptions/
+/issues/*/legacy.transcript.json
+
+# Local worktrees
+/.worktrees/
