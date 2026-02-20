@@ -104,7 +104,7 @@ function ContentBlockRenderer({ block }: { block: TranscriptBlock }) {
 
 // --- Message renderer ---
 
-function MessageRenderer({ message }: { message: TranscriptMessage }) {
+export function MessageRenderer({ message }: { message: TranscriptMessage }) {
   const { role, content } = message
 
   if (content == null) return null

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Link, useParams } from "react-router"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -23,7 +23,10 @@ import {
 } from "@/components/ui/table"
 import { RunStatusBadge } from "@/components/run-status-badge"
 import { useDelivery } from "@/hooks/use-delivery"
-import type { AgentRun, Phase, PhaseRun, Ref, RunStatus } from "@/types"
+import { useEventStream } from "@/hooks/use-event-stream"
+import type { StreamEvent } from "@/hooks/use-event-stream"
+import { MessageRenderer } from "@/pages/deliveries/transcript"
+import type { AgentRun, Phase, PhaseRun, Ref, RunStatus, TranscriptMessage } from "@/types"
 import {
   EXECUTOR_CLASSES,
   MODE_CLASSES,
@@ -369,6 +372,54 @@ function AgentRunsSection({
   )
 }
 
+// --- Live transcript helpers ---
+
+function streamEventsToMessages(events: StreamEvent[]): TranscriptMessage[] {
+  const messages: TranscriptMessage[] = []
+  for (const event of events) {
+    if (event.type === "system" || event.type === "result") continue
+    if (!event.message) continue
+    const role = (event.message.role as string) || event.type
+    const content = event.message.content as TranscriptMessage["content"]
+    messages.push({ role, content })
+  }
+  return messages
+}
+
+function LiveTranscript({ deliveryId, runStatus }: { deliveryId: string; runStatus: string }) {
+  const { events, done } = useEventStream(deliveryId, runStatus === "running")
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [events.length])
+
+  if (events.length === 0 && !done) return null
+
+  const messages = streamEventsToMessages(events)
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          Live Transcript
+          {!done && (
+            <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-1 max-h-[600px] overflow-y-auto">
+          {messages.map((msg, i) => (
+            <MessageRenderer key={i} message={msg} />
+          ))}
+          <div ref={bottomRef} />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // --- Main page ---
 
 export function DeliveryShow() {
@@ -457,6 +508,9 @@ export function DeliveryShow() {
 
       {/* Agent Runs */}
       <AgentRunsSection deliveryId={delivery.id} runs={delivery.runs} />
+
+      {/* Live Transcript (during running) */}
+      <LiveTranscript deliveryId={delivery.id} runStatus={delivery.run_status} />
     </div>
   )
 }
