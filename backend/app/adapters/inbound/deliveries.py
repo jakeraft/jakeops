@@ -14,6 +14,10 @@ class CollectBody(BaseModel):
     session_id: str
 
 
+class RunFixBody(BaseModel):
+    feedback: str = ""
+
+
 def get_usecases(request: Request):
     return request.app.state.delivery_usecases
 
@@ -77,6 +81,47 @@ async def generate_plan(delivery_id: str, uc=Depends(get_usecases)):
         result = await uc.generate_plan(delivery_id)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if result is None:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    return result
+
+
+@router.post("/deliveries/{delivery_id}/run-implement")
+async def run_implement(delivery_id: str, uc=Depends(get_usecases)):
+    try:
+        result = await uc.run_implement(delivery_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if result is None:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    return result
+
+
+@router.post("/deliveries/{delivery_id}/run-review")
+async def run_review(delivery_id: str, uc=Depends(get_usecases)):
+    try:
+        result = await uc.run_review(delivery_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if result is None:
+        raise HTTPException(status_code=404, detail="Delivery not found")
+    return result
+
+
+@router.post("/deliveries/{delivery_id}/run-fix")
+async def run_fix(delivery_id: str, body: RunFixBody, uc=Depends(get_usecases)):
+    try:
+        result = await uc.run_fix(delivery_id, feedback=body.feedback)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     if result is None:
         raise HTTPException(status_code=404, detail="Delivery not found")
     return result
