@@ -237,8 +237,8 @@ def test_sync_does_not_close_already_closed_delivery():
     assert len(delivery_uc.closed) == 1
 
 
-def test_sync_does_not_close_canceled_delivery():
-    """Deliveries with run_status='canceled' are skipped."""
+def test_sync_closes_canceled_delivery_when_issue_closed():
+    """Canceled deliveries are still closed when the GitHub issue is closed."""
     issue1 = GitHubIssue(number=1, title="Bug", html_url="https://github.com/o/r/issues/1", state="open")
     github_repo = FakeGitHubRepo([issue1])
     source_repo = FakeSourceRepo([{"id": "s1", "owner": "o", "repo": "r"}])
@@ -254,7 +254,8 @@ def test_sync_does_not_close_canceled_delivery():
     # Issue is now closed
     github_repo._issues = []
     result = uc.sync_once()
-    assert result["closed"] == 0
+    assert result["closed"] == 1
+    assert delivery_uc._deliveries[delivery_id]["phase"] == "close"
 
 
 def test_sync_returns_dict_with_created_and_closed():

@@ -76,7 +76,7 @@ class DeliverySyncUseCase:
             full_repo = f"{owner}/{repo}"
             all_deliveries = self._deliveries.list_deliveries()
             for delivery in all_deliveries:
-                if delivery["phase"] == "close" or delivery["run_status"] == "canceled":
+                if delivery["phase"] == "close":
                     continue
                 if delivery.get("repository") != full_repo:
                     continue

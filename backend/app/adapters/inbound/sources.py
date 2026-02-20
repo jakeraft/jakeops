@@ -10,7 +10,7 @@ def get_usecases(request: Request):
 
 
 def get_issue_sync(request: Request):
-    return request.app.state.issue_sync
+    return request.app.state.delivery_sync
 
 
 @router.get("/sources")
