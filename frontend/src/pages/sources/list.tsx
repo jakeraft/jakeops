@@ -180,7 +180,7 @@ function EditSourceDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" className="h-7 text-xs">
           Edit
         </Button>
       </DialogTrigger>
@@ -274,8 +274,7 @@ export function SourceList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Sources</h1>
+      <div className="flex items-center justify-end">
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -340,6 +339,7 @@ export function SourceList() {
                     <Button
                       variant="destructive"
                       size="sm"
+                      className="h-7 text-xs"
                       onClick={() => handleDelete(s)}
                     >
                       Delete
