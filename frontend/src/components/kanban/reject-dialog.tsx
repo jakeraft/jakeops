@@ -22,7 +22,6 @@ export function RejectDialog({ open, onOpenChange, onConfirm }: RejectDialogProp
   function handleSubmit() {
     if (reason.trim()) {
       onConfirm(reason.trim())
-      handleOpenChange(false)
     }
   }
 

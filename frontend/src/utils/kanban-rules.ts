@@ -24,13 +24,16 @@ export function getDropAction(
   const toIndex = PHASES.indexOf(toPhase)
   const diff = toIndex - fromIndex
 
+  // Only gate phases support manual transitions
+  if (!GATE_PHASES.has(fromPhase)) return null
+
   // Forward: must be exactly +1
   if (diff === 1) {
     return { type: "approve" }
   }
 
-  // Backward: must be exactly -1 and from a gate phase
-  if (diff === -1 && GATE_PHASES.has(fromPhase)) {
+  // Backward: must be exactly -1
+  if (diff === -1) {
     return { type: "reject" }
   }
 

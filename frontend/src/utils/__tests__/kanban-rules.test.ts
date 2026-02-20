@@ -17,10 +17,8 @@ describe("getDropAction", () => {
     })
   })
 
-  it("returns approve when moving forward from non-gate phase with succeeded status", () => {
-    expect(getDropAction("implement", "succeeded", "review")).toEqual({
-      type: "approve",
-    })
+  it("returns null when moving forward from non-gate phase", () => {
+    expect(getDropAction("implement", "succeeded", "review")).toBeNull()
   })
 
   it("returns reject when moving backward from gate phase with succeeded status", () => {
@@ -57,9 +55,7 @@ describe("getDropAction", () => {
     expect(getDropAction("plan", "canceled", "implement")).toBeNull()
   })
 
-  it("returns approve for intake to plan with succeeded", () => {
-    expect(getDropAction("intake", "succeeded", "plan")).toEqual({
-      type: "approve",
-    })
+  it("returns null for intake to plan (intake is not a gate phase)", () => {
+    expect(getDropAction("intake", "succeeded", "plan")).toBeNull()
   })
 })

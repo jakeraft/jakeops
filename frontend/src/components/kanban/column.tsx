@@ -1,8 +1,4 @@
 import { useDroppable } from "@dnd-kit/core"
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable"
 import { Badge } from "@/components/ui/badge"
 import type { Delivery, Phase } from "@/types"
 import { PHASE_CLASSES } from "@/utils/badge-styles"
@@ -46,18 +42,13 @@ export function KanbanColumn({
         </span>
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto p-2 pt-0">
-        <SortableContext
-          items={deliveries.map((d) => d.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          {deliveries.map((delivery) => (
-            <KanbanCard
-              key={delivery.id}
-              delivery={delivery}
-              onClick={onCardClick}
-            />
-          ))}
-        </SortableContext>
+        {deliveries.map((delivery) => (
+          <KanbanCard
+            key={delivery.id}
+            delivery={delivery}
+            onClick={onCardClick}
+          />
+        ))}
       </div>
     </div>
   )

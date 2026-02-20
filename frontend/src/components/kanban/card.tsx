@@ -1,5 +1,4 @@
-import { useSortable } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
+import { useDraggable } from "@dnd-kit/core"
 import { Badge } from "@/components/ui/badge"
 import type { Delivery } from "@/types"
 import { STATUS_CLASSES } from "@/utils/badge-styles"
@@ -16,14 +15,12 @@ export function KanbanCard({ delivery, onClick }: KanbanCardProps) {
     listeners,
     setNodeRef,
     transform,
-    transition,
     isDragging,
-  } = useSortable({ id: delivery.id, data: { delivery } })
+  } = useDraggable({ id: delivery.id, data: { delivery } })
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  }
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    : undefined
 
   return (
     <div

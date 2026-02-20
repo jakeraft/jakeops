@@ -85,15 +85,23 @@ export function KanbanBoard({ deliveries, onRefresh }: KanbanBoardProps) {
       }
 
       // approve
-      await apiPost(`/deliveries/${delivery.id}/approve`)
-      onRefresh()
+      try {
+        await apiPost(`/deliveries/${delivery.id}/approve`)
+        onRefresh()
+      } catch {
+        onRefresh()
+      }
     },
     [activeDelivery, onRefresh],
   )
 
   async function handleRejectConfirm(reason: string) {
     if (!rejectTarget) return
-    await apiPost(`/deliveries/${rejectTarget.id}/reject`, { reason })
+    try {
+      await apiPost(`/deliveries/${rejectTarget.id}/reject`, { reason })
+    } catch {
+      // refresh to show current state
+    }
     setRejectTarget(null)
     onRefresh()
   }
