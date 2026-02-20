@@ -88,8 +88,11 @@ The gap that neither Keptn nor Harness fills:
    Copilot Workspace) can be plugged in as an executor. Not locked to one vendor.
 2. **Explicit actor model** — every phase transition records whether system, agent,
    or human performed it, enabling audit trails for AI-assisted delivery.
-3. **Agent evidence retention** — plans, code diffs, reasoning transcripts, and
-   review feedback are stored as first-class artifacts within the Delivery object.
+3. **Agent reasoning transcripts** — not just logs, but the agent's full reasoning
+   chain: which files it read, which tools it called, what alternatives it
+   considered, and why it chose a specific approach. Stored per run as
+   `run-{id}.transcript.json` and tied to the Delivery lifecycle. Traditional
+   tools record _what_ happened; JakeOps records _why_.
 4. **Lightweight overlay** — no infrastructure replacement needed. Works with
    whatever CI/CD, Git hosting, and observability the team already uses.
 

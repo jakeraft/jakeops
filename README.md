@@ -37,11 +37,18 @@ JakeOps connects the lifecycle into one orchestration unit: a **Delivery**.
 | **AI Agents** | None | Built-in, closed ecosystem | External, pluggable (Claude Code, Devin, etc.) |
 | **CI/CD relationship** | Extends K8s deployments | Replaces your CI/CD | Sits above your existing CI/CD |
 | **Actor tracking** | System only | System + internal AI | System / Agent / Human (explicit) |
+| **Evidence model** | Metric evaluations | Pipeline logs | Agent reasoning transcripts |
 
 JakeOps is purpose-built for the emerging pattern where AI agents generate plans,
 write code, and trigger pipelines — while humans retain approval authority at
 critical gates. Existing tools either ignore agents entirely (Keptn) or lock you
 into a proprietary agent ecosystem (Harness).
+
+**Agent reasoning as a first-class artifact.** Traditional tools capture _what_
+happened (logs, metrics). JakeOps captures _why_ — the agent's reasoning
+transcript, tool calls, considered alternatives, and decision paths are stored
+per run and tied to the Delivery lifecycle. This turns ephemeral AI sessions into
+auditable, reviewable delivery evidence.
 
 ## Quick Start
 
