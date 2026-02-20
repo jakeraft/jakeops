@@ -187,6 +187,14 @@ def get_run_transcript(delivery_id: str, run_id: str, uc=Depends(get_usecases)):
     return transcript
 
 
+@router.get("/deliveries/{delivery_id}/runs/{run_id}/stream_log")
+def get_stream_log(delivery_id: str, run_id: str, uc=Depends(get_usecases)):
+    log = uc.get_stream_log(delivery_id, run_id)
+    if log is None:
+        raise HTTPException(status_code=404, detail="Stream log not found")
+    return log
+
+
 @router.post("/deliveries/{delivery_id}/collect")
 def collect(delivery_id: str, body: CollectBody, uc=Depends(get_usecases)):
     try:
