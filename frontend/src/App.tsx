@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router"
 import { AppLayout } from "./components/app-layout"
 import { DeliveryList } from "./pages/deliveries/list"
+import { DeliveryShow } from "./pages/deliveries/show"
 
 function Placeholder({ name }: { name: string }) {
   return <div className="text-lg">{name}</div>
@@ -13,7 +14,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/deliveries" replace />} />
           <Route path="deliveries" element={<DeliveryList />} />
-          <Route path="deliveries/:id" element={<Placeholder name="Delivery Detail" />} />
+          <Route path="deliveries/:id" element={<DeliveryShow />} />
           <Route path="deliveries/:id/runs/:runId/transcript" element={<Placeholder name="Transcript" />} />
           <Route path="sources" element={<Placeholder name="Sources" />} />
           <Route path="worker" element={<Placeholder name="Worker" />} />
