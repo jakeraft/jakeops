@@ -1,5 +1,6 @@
 """Tests for agent execution use cases (generate_plan, run_implement, etc.)"""
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from app.adapters.outbound.filesystem_delivery import FileSystemDeliveryRepository
 from app.adapters.outbound.filesystem_source import FileSystemSourceRepository
 from app.domain.models.delivery import DeliveryCreate, DeliveryUpdate, Plan
+from app.domain.services.event_bus import EventBus
 from app.usecases.delivery_usecases import DeliveryUseCasesImpl
 
 
@@ -325,3 +327,78 @@ class TestRunReview:
         assert git_ops.checkout_calls[0]["branch"] == f"jakeops/{delivery_id}"
 
 
+class MockStreamingRunner:
+    """Mock that supports both run() and run_stream()."""
+
+    def __init__(self, result_text: str = "Generated plan content"):
+        self.result_text = result_text
+        self.calls: list[dict] = []
+
+    async def run(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
+        self.calls.append({"prompt": prompt, "cwd": cwd})
+        return (self.result_text, None)
+
+    async def run_stream(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
+        self.calls.append({"prompt": prompt, "cwd": cwd})
+        events = [
+            {"type": "system", "subtype": "init", "message": {"model": "test-model", "cwd": cwd}},
+            {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": self.result_text}], "usage": {"input_tokens": 10, "output_tokens": 5}}},
+            {"type": "result", "subtype": "success", "message": {"result": self.result_text, "is_error": False, "cost_usd": 0.01, "input_tokens": 10, "output_tokens": 5, "duration_ms": 100}},
+        ]
+        for event in events:
+            yield event
+
+    def kill(self, delivery_id):
+        return False
+
+
+class TestStreamingExecution:
+    @pytest.fixture
+    def event_bus(self):
+        return EventBus()
+
+    @pytest.fixture
+    def streaming_runner(self):
+        return MockStreamingRunner()
+
+    @pytest.fixture
+    def uc(self, repos, streaming_runner, git_ops, event_bus):
+        delivery_repo, source_repo = repos
+        return DeliveryUseCasesImpl(delivery_repo, streaming_runner, git_ops, source_repo, event_bus=event_bus)
+
+    @pytest.mark.asyncio
+    async def test_generate_plan_publishes_events(self, uc, event_bus):
+        result = _create_delivery(uc)
+        delivery_id = result["id"]
+
+        collected = []
+
+        async def collect():
+            async for event in event_bus.subscribe(delivery_id):
+                collected.append(event)
+
+        task = asyncio.create_task(collect())
+        await asyncio.sleep(0.01)
+
+        await uc.generate_plan(delivery_id)
+
+        # EventBus should be closed after run completes
+        await asyncio.sleep(0.05)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+        assert len(collected) >= 2  # at least system + assistant events
+
+    @pytest.mark.asyncio
+    async def test_stream_extracts_metadata_from_events(self, uc, streaming_runner):
+        result = _create_delivery(uc)
+        plan_result = await uc.generate_plan(result["id"])
+        assert plan_result["run_status"] == "succeeded"
+
+        delivery = uc.get_delivery(result["id"])
+        run = delivery["runs"][-1]
+        assert run["stats"]["cost_usd"] == 0.01
+        assert run["session"]["model"] == "test-model"

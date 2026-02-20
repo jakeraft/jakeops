@@ -25,6 +25,7 @@ from app.domain.services.session_parser import (
 )
 from app.domain.services.stream_parser import extract_metadata, extract_transcript
 from app.domain.models.stream import StreamMetadata
+from app.domain.services.event_bus import EventBus
 from app.ports.outbound.delivery_repository import DeliveryRepository
 from app.ports.outbound.subprocess_runner import SubprocessRunner
 from app.ports.outbound.git_operations import GitOperations
@@ -120,11 +121,13 @@ class DeliveryUseCasesImpl:
         runner: SubprocessRunner | None = None,
         git_ops: GitOperations | None = None,
         source_repo: SourceRepository | None = None,
+        event_bus: EventBus | None = None,
     ) -> None:
         self._repo = repo
         self._runner = runner
         self._git = git_ops
         self._source_repo = source_repo
+        self._event_bus = event_bus
 
     def list_deliveries(self) -> list[dict]:
         return self._repo.list_deliveries()
@@ -365,32 +368,61 @@ class DeliveryUseCasesImpl:
             self._git.clone_repo(owner, repo_name, token, work_dir)
             if branch:
                 self._git.checkout_branch(work_dir, branch)
-            result_text, session_id = await self._runner.run(
-                prompt=prompt,
-                cwd=work_dir,
-                allowed_tools=allowed_tools,
-                append_system_prompt=system_prompt,
-                delivery_id=delivery_id,
-            )
 
-            # Collect transcript and metadata from local session file
-            metadata = StreamMetadata(result_text=result_text)
-            transcript: dict = {}
-            if session_id:
-                try:
-                    session_file = find_session_file(session_id)
-                    if session_file:
-                        lines = session_file.read_text(encoding="utf-8").strip().splitlines()
-                        events = parse_session_lines(lines)
-                        result_event = synthesize_result_event(events)
-                        all_events = events + [result_event]
-                        metadata = extract_metadata(all_events)
-                        transcript = extract_transcript(all_events)
-                except (ValueError, OSError) as parse_err:
-                    logger.warning(
-                        "session file parsing failed, using CLI result only",
-                        session_id=session_id, error=str(parse_err),
+            # Try streaming mode first, fallback to blocking mode
+            if hasattr(self._runner, "run_stream"):
+                collected_events: list[dict] = []
+                async for event in self._runner.run_stream(
+                    prompt=prompt,
+                    cwd=work_dir,
+                    allowed_tools=allowed_tools,
+                    append_system_prompt=system_prompt,
+                    delivery_id=delivery_id,
+                ):
+                    collected_events.append(event)
+                    if self._event_bus:
+                        await self._event_bus.publish(delivery_id, event)
+
+                # Extract metadata from collected stream events
+                from app.domain.models.stream import StreamEvent
+                stream_events = [
+                    StreamEvent(
+                        type=e.get("type", ""),
+                        subtype=e.get("subtype"),
+                        parent_tool_use_id=e.get("parent_tool_use_id"),
+                        message=e.get("message"),
+                        session_id=e.get("session_id"),
                     )
+                    for e in collected_events
+                ]
+                metadata = extract_metadata(stream_events)
+                transcript = extract_transcript(stream_events)
+            else:
+                # Fallback: blocking run + session file parsing (existing logic)
+                result_text, session_id = await self._runner.run(
+                    prompt=prompt,
+                    cwd=work_dir,
+                    allowed_tools=allowed_tools,
+                    append_system_prompt=system_prompt,
+                    delivery_id=delivery_id,
+                )
+                metadata = StreamMetadata(result_text=result_text)
+                transcript = {}
+                if session_id:
+                    try:
+                        session_file = find_session_file(session_id)
+                        if session_file:
+                            lines = session_file.read_text(encoding="utf-8").strip().splitlines()
+                            events = parse_session_lines(lines)
+                            result_event = synthesize_result_event(events)
+                            all_events = events + [result_event]
+                            metadata = extract_metadata(all_events)
+                            transcript = extract_transcript(all_events)
+                    except (ValueError, OSError) as parse_err:
+                        logger.warning(
+                            "session file parsing failed, using CLI result only",
+                            session_id=session_id, error=str(parse_err),
+                        )
 
             run_id = uuid.uuid4().hex[:8]
             run = {
@@ -405,7 +437,6 @@ class DeliveryUseCasesImpl:
                     "output_tokens": metadata.output_tokens,
                     "duration_ms": metadata.duration_ms,
                 },
-                "session_id": session_id,
                 "summary": metadata.result_text[:200] if metadata.result_text else None,
             }
 
@@ -439,6 +470,8 @@ class DeliveryUseCasesImpl:
             }
         finally:
             shutil.rmtree(work_dir, ignore_errors=True)
+            if self._event_bus:
+                await self._event_bus.close(delivery_id)
 
     async def generate_plan(self, delivery_id: str) -> dict | None:
         existing = self._repo.get_delivery(delivery_id)

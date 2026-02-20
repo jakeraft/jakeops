@@ -15,6 +15,7 @@ from app.adapters.outbound.filesystem_source import FileSystemSourceRepository
 from app.adapters.outbound.github_api import GitHubApiAdapter
 from app.adapters.outbound.claude_cli import ClaudeCliAdapter
 from app.adapters.outbound.git_cli import GitCliAdapter
+from app.domain.services.event_bus import EventBus
 from app.usecases.delivery_usecases import DeliveryUseCasesImpl
 from app.usecases.source_usecases import SourceUseCasesImpl
 from app.usecases.delivery_sync import DeliverySyncUseCase
@@ -55,9 +56,11 @@ async def lifespan(app: FastAPI):
     # Use Cases
     runner = ClaudeCliAdapter()
     git_ops = GitCliAdapter()
+    event_bus = EventBus()
     app.state.delivery_usecases = DeliveryUseCasesImpl(
-        delivery_repo, runner, git_ops, source_repo
+        delivery_repo, runner, git_ops, source_repo, event_bus=event_bus
     )
+    app.state.event_bus = event_bus
     app.state.source_usecases = SourceUseCasesImpl(source_repo)
 
     # Delivery Sync
