@@ -8,14 +8,14 @@ export function useDelivery(id: string | undefined) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [actionPending, setActionPending] = useState(false)
 
   const refresh = useCallback(async () => {
     if (!id) return
-    setLoading(true)
-    setError(null)
     try {
       const data = await apiFetch<Delivery>(`/deliveries/${id}`)
       setDelivery(data)
+      setError(null)
     } catch (e) {
       const message = e instanceof Error ? e.message : "Unknown error"
       logger.error("Failed to fetch delivery", { id, error: message })
@@ -32,6 +32,7 @@ export function useDelivery(id: string | undefined) {
   const performAction = useCallback(
     async (action: () => Promise<unknown>) => {
       setActionError(null)
+      setActionPending(true)
       try {
         await action()
         await refresh()
@@ -39,7 +40,10 @@ export function useDelivery(id: string | undefined) {
         const message = e instanceof Error ? e.message : "Unknown error"
         logger.error("Delivery action failed", { id, error: message })
         setActionError(message)
+        await refresh()
         throw e
+      } finally {
+        setActionPending(false)
       }
     },
     [id, refresh],
@@ -56,18 +60,22 @@ export function useDelivery(id: string | undefined) {
     [id, performAction],
   )
 
-  const retry = useCallback(
-    () => performAction(() => apiPost(`/deliveries/${id}/retry`)),
-    [id, performAction],
-  )
-
   const cancel = useCallback(
     () => performAction(() => apiPost(`/deliveries/${id}/cancel`)),
     [id, performAction],
   )
 
-  const generatePlan = useCallback(
-    () => performAction(() => apiPost(`/deliveries/${id}/generate-plan`)),
+  const runAgent = useCallback(
+    () => performAction(async () => {
+      const d = await apiFetch<{ phase: string; run_status: string }>(`/deliveries/${id}`)
+      if (d.run_status === "failed") {
+        await apiPost(`/deliveries/${id}/retry`)
+      }
+      setDelivery((prev) => prev ? { ...prev, run_status: "running" } : prev)
+      if (d.phase === "plan") await apiPost(`/deliveries/${id}/generate-plan`)
+      else if (d.phase === "implement") await apiPost(`/deliveries/${id}/run-implement`)
+      else if (d.phase === "review") await apiPost(`/deliveries/${id}/run-review`)
+    }),
     [id, performAction],
   )
 
@@ -76,12 +84,12 @@ export function useDelivery(id: string | undefined) {
     loading,
     error,
     actionError,
+    actionPending,
     clearActionError: useCallback(() => setActionError(null), []),
     refresh,
     approve,
     reject,
-    retry,
     cancel,
-    generatePlan,
+    runAgent,
   }
 }
