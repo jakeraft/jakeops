@@ -5,6 +5,7 @@ import { DeliveryShow } from "./pages/deliveries/show"
 import { TranscriptViewer } from "./pages/deliveries/transcript"
 import { SourceList } from "./pages/sources/list"
 import { WorkerStatusPage } from "./pages/worker/status"
+import { DeliveryBoard } from "./pages/deliveries/board"
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="deliveries/:id/runs/:runId/transcript" element={<TranscriptViewer />} />
           <Route path="sources" element={<SourceList />} />
           <Route path="worker" element={<WorkerStatusPage />} />
+          <Route path="board" element={<DeliveryBoard />} />
         </Route>
       </Routes>
     </BrowserRouter>

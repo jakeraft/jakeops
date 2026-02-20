@@ -1,4 +1,4 @@
-import { Package, GitFork, Activity } from "lucide-react"
+import { Package, GitFork, Activity, Columns3 } from "lucide-react"
 import { NavLink } from "react-router"
 import {
   Sidebar,
@@ -16,6 +16,7 @@ const NAV_ITEMS = [
   { to: "/deliveries", label: "Deliveries", icon: Package },
   { to: "/sources", label: "Sources", icon: GitFork },
   { to: "/worker", label: "Worker", icon: Activity },
+  { to: "/board", label: "Board", icon: Columns3 },
 ]
 
 export function AppSidebar() {
