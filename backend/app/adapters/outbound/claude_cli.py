@@ -68,7 +68,7 @@ class ClaudeCliAdapter:
         append_system_prompt: str | None = None,
         delivery_id: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
-        cmd = ["claude", "-p", prompt, "--output-format", "stream-json"]
+        cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose"]
         if allowed_tools:
             cmd += ["--allowedTools", ",".join(allowed_tools)]
         if append_system_prompt:
@@ -87,6 +87,7 @@ class ClaudeCliAdapter:
         try:
             assert proc.stdout is not None
             event_count = 0
+            skipped_lines = 0
             event_types: list[str] = []
             while True:
                 try:
@@ -106,13 +107,33 @@ class ClaudeCliAdapter:
                     event_types.append(parsed.get("type", "?"))
                     yield parsed
                 except json.JSONDecodeError:
+                    skipped_lines += 1
                     logger.warning("skipping non-JSON line", line=text[:200])
+
+            # Drain any remaining stdout after EOF (handles missing trailing newline)
+            remaining = await proc.stdout.read()
+            if remaining:
+                for fragment in remaining.decode().strip().splitlines():
+                    fragment = fragment.strip()
+                    if not fragment:
+                        continue
+                    try:
+                        parsed = json.loads(fragment)
+                        event_count += 1
+                        event_types.append(parsed.get("type", "?"))
+                        yield parsed
+                        logger.info("recovered event from stdout remainder", event_type=parsed.get("type"))
+                    except json.JSONDecodeError:
+                        skipped_lines += 1
+                        logger.warning("skipping non-JSON remainder", line=fragment[:200])
+
             await proc.wait()
             logger.info(
                 "claude CLI stream finished",
                 delivery_id=delivery_id,
                 exit_code=proc.returncode,
                 event_count=event_count,
+                skipped_lines=skipped_lines,
                 event_types_tail=event_types[-10:],
                 has_result="result" in event_types,
             )

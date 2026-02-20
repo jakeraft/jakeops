@@ -178,6 +178,8 @@ class TestRunStream:
                         return next(self._lines)
                     except StopIteration:
                         return b""
+                async def read(self):
+                    return b""
             class FakeProc:
                 returncode = 0
                 stdout = FakeStdout()
@@ -205,6 +207,8 @@ class TestRunStream:
             captured_args.extend(args)
             class FakeStdout:
                 async def readline(self):
+                    return b""
+                async def read(self):
                     return b""
             class FakeProc:
                 returncode = 0
