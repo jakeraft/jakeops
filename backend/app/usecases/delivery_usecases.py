@@ -361,6 +361,9 @@ class DeliveryUseCasesImpl:
         token = self._get_source_token(owner, repo_name)
         work_dir = tempfile.mkdtemp(prefix="jakeops-work-")
 
+        run_id = uuid.uuid4().hex[:8]
+        collected_events: list[dict] = []
+
         try:
             self._git.clone_repo(owner, repo_name, token, work_dir)
             if branch:
@@ -368,7 +371,6 @@ class DeliveryUseCasesImpl:
 
             # Use streaming when event_bus is wired, blocking otherwise
             if self._event_bus:
-                collected_events: list[dict] = []
                 async for event in self._runner.run_stream(
                     prompt=prompt,
                     cwd=work_dir,
@@ -417,7 +419,6 @@ class DeliveryUseCasesImpl:
                             session_id=session_id, error=str(parse_err),
                         )
 
-            run_id = uuid.uuid4().hex[:8]
             run = {
                 "id": run_id,
                 "mode": mode,
@@ -432,6 +433,16 @@ class DeliveryUseCasesImpl:
                 },
                 "summary": metadata.result_text[:200] if metadata.result_text else None,
             }
+
+            # Persist stream log if events were collected
+            if collected_events:
+                stream_log = {
+                    "run_id": run_id,
+                    "started_at": run["created_at"],
+                    "completed_at": datetime.now(KST).isoformat(),
+                    "events": collected_events,
+                }
+                self._repo.save_stream_log(delivery_id, run_id, stream_log)
 
             delivery.setdefault("runs", []).append(run)
             delivery["run_status"] = "succeeded"
@@ -449,6 +460,16 @@ class DeliveryUseCasesImpl:
                 "result_text": metadata.result_text,
             }
         except Exception as e:
+            # Persist partial stream log on error
+            if collected_events:
+                stream_log = {
+                    "run_id": run_id,
+                    "started_at": datetime.now(KST).isoformat(),
+                    "completed_at": datetime.now(KST).isoformat(),
+                    "events": collected_events,
+                }
+                self._repo.save_stream_log(delivery_id, run_id, stream_log)
+
             delivery["run_status"] = "failed"
             delivery["error"] = str(e)
             delivery["updated_at"] = datetime.now(KST).isoformat()
@@ -626,6 +647,9 @@ class DeliveryUseCasesImpl:
 
     def save_run_transcript(self, delivery_id: str, run_id: str, data: dict) -> None:
         self._repo.save_run_transcript(delivery_id, run_id, data)
+
+    def get_stream_log(self, delivery_id: str, run_id: str) -> dict | None:
+        return self._repo.get_stream_log(delivery_id, run_id)
 
     def collect_session(self, delivery_id: str, session_id: str) -> dict | None:
         existing = self._repo.get_delivery(delivery_id)
