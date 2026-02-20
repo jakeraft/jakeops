@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { renderHook, waitFor } from "@testing-library/react"
+import { renderHook, waitFor, act } from "@testing-library/react"
 import { useDelivery } from "../use-delivery"
 import * as api from "@/utils/api"
 
@@ -53,6 +53,7 @@ const MOCK_DELIVERY = {
 
 describe("useDelivery", () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     vi.mocked(api.apiFetch).mockResolvedValue(MOCK_DELIVERY)
     vi.mocked(api.apiPost).mockResolvedValue({
       id: "abc123",
@@ -68,17 +69,23 @@ describe("useDelivery", () => {
     expect(api.apiFetch).toHaveBeenCalledWith("/deliveries/abc123")
   })
 
+  it("skips fetch when id is undefined", async () => {
+    const { result } = renderHook(() => useDelivery(undefined))
+    expect(result.current.loading).toBe(true)
+    expect(api.apiFetch).not.toHaveBeenCalled()
+  })
+
   it("provides approve action", async () => {
     const { result } = renderHook(() => useDelivery("abc123"))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    await result.current.approve()
+    await act(() => result.current.approve())
     expect(api.apiPost).toHaveBeenCalledWith("/deliveries/abc123/approve")
   })
 
   it("provides reject action", async () => {
     const { result } = renderHook(() => useDelivery("abc123"))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    await result.current.reject("Needs more detail")
+    await act(() => result.current.reject("Needs more detail"))
     expect(api.apiPost).toHaveBeenCalledWith("/deliveries/abc123/reject", {
       reason: "Needs more detail",
     })
@@ -87,23 +94,45 @@ describe("useDelivery", () => {
   it("provides retry action", async () => {
     const { result } = renderHook(() => useDelivery("abc123"))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    await result.current.retry()
+    await act(() => result.current.retry())
     expect(api.apiPost).toHaveBeenCalledWith("/deliveries/abc123/retry")
   })
 
   it("provides cancel action", async () => {
     const { result } = renderHook(() => useDelivery("abc123"))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    await result.current.cancel()
+    await act(() => result.current.cancel())
     expect(api.apiPost).toHaveBeenCalledWith("/deliveries/abc123/cancel")
   })
 
   it("provides generatePlan action", async () => {
     const { result } = renderHook(() => useDelivery("abc123"))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    await result.current.generatePlan()
+    await act(() => result.current.generatePlan())
     expect(api.apiPost).toHaveBeenCalledWith(
       "/deliveries/abc123/generate-plan",
     )
+  })
+
+  it("sets actionError when action fails", async () => {
+    vi.mocked(api.apiPost).mockRejectedValue(new Error("Conflict: not in gate phase"))
+    const { result } = renderHook(() => useDelivery("abc123"))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    await act(async () => {
+      await result.current.approve().catch(() => {})
+    })
+    expect(result.current.actionError).toBe("Conflict: not in gate phase")
+  })
+
+  it("clears actionError", async () => {
+    vi.mocked(api.apiPost).mockRejectedValue(new Error("Conflict"))
+    const { result } = renderHook(() => useDelivery("abc123"))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+    await act(async () => {
+      await result.current.approve().catch(() => {})
+    })
+    expect(result.current.actionError).toBe("Conflict")
+    act(() => result.current.clearActionError())
+    expect(result.current.actionError).toBeNull()
   })
 })
