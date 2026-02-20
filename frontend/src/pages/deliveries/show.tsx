@@ -12,7 +12,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -25,6 +33,7 @@ import { RunStatusBadge } from "@/components/run-status-badge"
 import { useDelivery } from "@/hooks/use-delivery"
 import { useEventStream } from "@/hooks/use-event-stream"
 import type { StreamEvent } from "@/hooks/use-event-stream"
+import { useStreamLog } from "@/hooks/use-stream-log"
 import { MessageRenderer } from "@/pages/deliveries/transcript"
 import type { AgentRun, Phase, PhaseRun, Ref, RunStatus, TranscriptMessage } from "@/types"
 import {
@@ -398,6 +407,73 @@ function LiveTranscript({ deliveryId, runStatus }: { deliveryId: string; runStat
   )
 }
 
+// --- Agents Log tab ---
+
+function AgentsLogTab({ deliveryId, runs, runStatus }: {
+  deliveryId: string
+  runs: AgentRun[]
+  runStatus: RunStatus
+}) {
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(
+    runs.length > 0 ? runs[runs.length - 1].id : null,
+  )
+
+  const isLatestRun = selectedRunId === (runs.length > 0 ? runs[runs.length - 1].id : null)
+  const isLive = runStatus === "running" && isLatestRun
+
+  const { log, loading: logLoading } = useStreamLog(
+    deliveryId,
+    isLive ? null : selectedRunId,
+  )
+
+  return (
+    <div className="space-y-4">
+      {runs.length > 0 && (
+        <Select value={selectedRunId ?? ""} onValueChange={setSelectedRunId}>
+          <SelectTrigger className="w-80">
+            <SelectValue placeholder="Select a run..." />
+          </SelectTrigger>
+          <SelectContent>
+            {runs.map((run) => (
+              <SelectItem key={run.id} value={run.id}>
+                {run.mode} — {run.status} — {run.session.model}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+
+      {isLive ? (
+        <LiveTranscript deliveryId={deliveryId} runStatus={runStatus} />
+      ) : logLoading ? (
+        <p className="text-sm text-muted-foreground">Loading log...</p>
+      ) : log ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Run Log
+              <span className="text-xs font-normal text-muted-foreground">
+                {log.started_at} → {log.completed_at}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1 max-h-[600px] overflow-y-auto">
+              {streamEventsToMessages(log.events).map((msg, i) => (
+                <MessageRenderer key={i} message={msg} />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : selectedRunId ? (
+        <p className="text-sm text-muted-foreground">No log available for this run.</p>
+      ) : (
+        <p className="text-sm text-muted-foreground">No agent runs yet.</p>
+      )}
+    </div>
+  )
+}
+
 // --- Main page ---
 
 export function DeliveryShow() {
@@ -470,22 +546,29 @@ export function DeliveryShow() {
 
       <Separator />
 
-      {/* Error — hide while running since it's stale from a previous run */}
-      {delivery.error && delivery.run_status !== "running" && (
-        <ErrorBox message={delivery.error} />
-      )}
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="agents-log">Agents Log</TabsTrigger>
+        </TabsList>
 
-      {/* Refs */}
-      <RefsList refs={delivery.refs} />
+        <TabsContent value="overview" className="space-y-6 mt-4">
+          {delivery.error && delivery.run_status !== "running" && (
+            <ErrorBox message={delivery.error} />
+          )}
+          <RefsList refs={delivery.refs} />
+          <PhaseRunsTable phaseRuns={delivery.phase_runs} />
+          <AgentRunsSection runs={delivery.runs} />
+        </TabsContent>
 
-      {/* Phase Runs History */}
-      <PhaseRunsTable phaseRuns={delivery.phase_runs} />
-
-      {/* Agent Runs */}
-      <AgentRunsSection runs={delivery.runs} />
-
-      {/* Live Transcript (during running) */}
-      <LiveTranscript deliveryId={delivery.id} runStatus={delivery.run_status} />
+        <TabsContent value="agents-log" className="mt-4">
+          <AgentsLogTab
+            deliveryId={delivery.id}
+            runs={delivery.runs}
+            runStatus={delivery.run_status}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
