@@ -1,37 +1,20 @@
-// Phase pipeline
-export type Phase =
-  | "intake"
-  | "plan"
-  | "implement"
-  | "review"
-  | "verify"
-  | "deploy"
-  | "observe"
-  | "close"
+// Enum types — re-exported from generated file (SSOT: backend Python enums)
+export type {
+  Phase,
+  RunStatus,
+  ExecutorKind,
+  Verdict,
+  RefRole,
+  RefType,
+} from "./types.generated"
 
-export type RunStatus =
-  | "pending"
-  | "running"
-  | "succeeded"
-  | "failed"
-  | "blocked"
+export { PHASES, RUN_STATUSES, EXECUTOR_KINDS } from "./types.generated"
 
-export type ExecutorKind = "system" | "agent"
+// --- Hand-authored interfaces below ---
 
-export type Verdict = "pass" | "not_pass"
+import type { ExecutorKind, Phase, RefRole, RefType, RunStatus, Verdict } from "./types.generated"
 
 // Refs
-export type RefRole = "trigger" | "output" | "parent"
-export type RefType =
-  | "jira"
-  | "verbal"
-  | "pr"
-  | "commit"
-  | "repo"
-  | "github_issue"
-  | "pull_request"
-  | "issue"
-
 export interface Ref {
   role: RefRole
   type: RefType

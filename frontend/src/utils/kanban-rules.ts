@@ -1,9 +1,7 @@
 import type { Phase, RunStatus } from "@/types"
+import { PHASES } from "@/types"
 
-export const PHASES: Phase[] = [
-  "intake", "plan", "implement", "review",
-  "verify", "deploy", "observe", "close",
-]
+export { PHASES }
 
 // Action phases: phases that support human actions (approve/reject/retry)
 export const ACTION_PHASES: Set<Phase> = new Set(["plan", "implement", "review"])
