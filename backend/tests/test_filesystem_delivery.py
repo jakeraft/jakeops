@@ -86,6 +86,22 @@ class TestTranscript:
         assert result is None
 
 
+class TestStreamLog:
+    def test_save_and_get_stream_log(self, repo):
+        log_data = {
+            "run_id": "run001",
+            "started_at": "2026-02-20T10:00:00",
+            "completed_at": "2026-02-20T10:05:00",
+            "events": [{"type": "assistant", "message": {"role": "assistant"}}],
+        }
+        repo.save_stream_log("dlv00001", "run001", log_data)
+        result = repo.get_stream_log("dlv00001", "run001")
+        assert result == log_data
+
+    def test_get_stream_log_not_found(self, repo):
+        assert repo.get_stream_log("dlv00001", "run999") is None
+
+
 class TestCorruptedFile:
     def test_list_corrupted_file_skipped(self, repo, tmp_path):
         # save a valid file

@@ -53,6 +53,18 @@ class FileSystemDeliveryRepository:
         file = delivery_dir / f"run-{run_id}.transcript.json"
         self._atomic_write(file, data)
 
+    def get_stream_log(self, delivery_id: str, run_id: str) -> dict | None:
+        file = self._dir / delivery_id / f"run-{run_id}.stream_log.json"
+        if not file.exists():
+            return None
+        return json.loads(file.read_text(encoding="utf-8"))
+
+    def save_stream_log(self, delivery_id: str, run_id: str, data: dict) -> None:
+        delivery_dir = self._dir / delivery_id
+        delivery_dir.mkdir(parents=True, exist_ok=True)
+        file = delivery_dir / f"run-{run_id}.stream_log.json"
+        self._atomic_write(file, data)
+
     def next_seq(self) -> int:
         max_seq = 0
         for delivery_dir in self._dir.iterdir():
