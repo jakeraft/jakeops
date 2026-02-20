@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge"
+import { StableText } from "@/components/stable-text"
 import type { Delivery } from "@/types"
 import { STATUS_CLASSES } from "@/utils/badge-styles"
 import { formatRelativeTime } from "@/utils/format"
@@ -17,7 +18,9 @@ export function KanbanCard({ delivery, onClick }: KanbanCardProps) {
       <p className="text-sm font-medium line-clamp-2">{delivery.summary}</p>
       <div className="flex items-center justify-between gap-2">
         <Badge variant="secondary" className={`text-xs ${STATUS_CLASSES[delivery.run_status]}`}>
-          {delivery.run_status}
+          <StableText candidates={Object.keys(STATUS_CLASSES)}>
+            {delivery.run_status}
+          </StableText>
         </Badge>
         <span className="text-xs text-muted-foreground truncate">
           {delivery.repository}

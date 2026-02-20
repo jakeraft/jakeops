@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { RunStatusBadge } from "@/components/run-status-badge"
+import { StableText } from "@/components/stable-text"
 import {
   Table,
   TableBody,
@@ -26,6 +27,8 @@ const AGENT_ACTION_LABELS: Record<string, string> = {
   implement: "Run Implement",
   review: "Run Review",
 }
+const ACTION_LABEL_CANDIDATES = [...Object.values(AGENT_ACTION_LABELS), "Approve", "Cancel"]
+const PHASE_CANDIDATES = Object.keys(PHASE_CLASSES)
 
 type ActionKind = "run-agent" | "approve" | "reject" | "cancel" | null
 
@@ -64,7 +67,7 @@ function ActionCell({
         className={`h-7 text-xs ${config.className}`}
         onClick={(e) => { e.stopPropagation(); onAction(delivery, action) }}
       >
-        {label}
+        <StableText candidates={ACTION_LABEL_CANDIDATES}>{label}</StableText>
       </Button>
       {action === "approve" && (
         <Button
@@ -125,11 +128,11 @@ function DeliveryTable({
             <TableCell className="font-medium">{d.summary}</TableCell>
             <TableCell>
               <Badge variant="secondary" className={PHASE_CLASSES[d.phase]}>
-                {d.phase}
+                <StableText candidates={PHASE_CANDIDATES}>{d.phase}</StableText>
               </Badge>
             </TableCell>
             <TableCell>
-              <RunStatusBadge status={d.run_status} animate />
+              <RunStatusBadge status={d.run_status} />
             </TableCell>
             <TableCell>
               <ActionCell delivery={d} onAction={onAction} />
@@ -188,7 +191,7 @@ export function DeliveryList() {
           await apiPost(`/deliveries/${d.id}/approve`)
           break
         case "reject":
-          await apiPost(`/deliveries/${d.id}/reject`, { reason: "" })
+          await apiPost(`/deliveries/${d.id}/reject`)
           break
         case "cancel":
           await apiPost(`/deliveries/${d.id}/cancel`)
@@ -220,7 +223,9 @@ export function DeliveryList() {
           disabled={syncing}
           onClick={handleSync}
         >
-          {syncing ? "Syncing..." : "Sync"}
+          <StableText candidates={["Sync", "Syncing..."]}>
+            {syncing ? "Syncing..." : "Sync"}
+          </StableText>
         </Button>
       </div>
       <TabsContent value="active">

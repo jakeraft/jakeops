@@ -60,8 +60,7 @@ export function useDelivery(id: string | undefined) {
   )
 
   const reject = useCallback(
-    (reason: string) =>
-      performAction(() => apiPost(`/deliveries/${id}/reject`, { reason })),
+    () => performAction(() => apiPost(`/deliveries/${id}/reject`)),
     [id, performAction],
   )
 

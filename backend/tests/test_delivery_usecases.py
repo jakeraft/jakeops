@@ -168,30 +168,30 @@ class TestReject:
 
     def test_reject_plan_stays_at_plan(self, usecases):
         result = _create_delivery(usecases, phase="plan", run_status="succeeded")
-        rejected = usecases.reject(result["id"], reason="Inadequate plan")
+        rejected = usecases.reject(result["id"])
         assert rejected["phase"] == "plan"
         assert rejected["run_status"] == "pending"
 
     def test_reject_implement_to_plan(self, usecases):
         result = _create_delivery(usecases, phase="implement", run_status="succeeded")
-        rejected = usecases.reject(result["id"], reason="Wrong approach")
+        rejected = usecases.reject(result["id"])
         assert rejected["phase"] == "plan"
         assert rejected["run_status"] == "pending"
 
     def test_reject_review_to_implement(self, usecases):
         result = _create_delivery(usecases, phase="review", run_status="succeeded")
-        rejected = usecases.reject(result["id"], reason="Needs re-implementation")
+        rejected = usecases.reject(result["id"])
         assert rejected["phase"] == "implement"
         assert rejected["run_status"] == "pending"
 
     def test_reject_non_action_phase(self, usecases):
         result = _create_delivery(usecases, phase="intake", run_status="pending")
         with pytest.raises(ValueError, match="reject"):
-            usecases.reject(result["id"], reason="x")
+            usecases.reject(result["id"])
 
     def test_reject_appends_phase_run(self, usecases):
         result = _create_delivery(usecases, phase="plan", run_status="succeeded")
-        usecases.reject(result["id"], reason="bad")
+        usecases.reject(result["id"])
         delivery = usecases.get_delivery(result["id"])
         assert delivery["phase_runs"][-1]["phase"] == "plan"
 

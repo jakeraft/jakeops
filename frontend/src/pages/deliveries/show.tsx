@@ -4,15 +4,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -48,59 +39,6 @@ import { ACTION_PHASES } from "@/utils/kanban-rules"
 
 // --- Sub-components ---
 
-function RejectDialog({
-  open,
-  onOpenChange,
-  onConfirm,
-}: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onConfirm: (reason: string) => void
-}) {
-  const [reason, setReason] = useState("")
-
-  function handleSubmit() {
-    if (reason.trim()) {
-      onConfirm(reason.trim())
-      handleOpenChange(false)
-    }
-  }
-
-  function handleOpenChange(nextOpen: boolean) {
-    if (!nextOpen) setReason("")
-    onOpenChange(nextOpen)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Reject Delivery</DialogTitle>
-          <DialogDescription>
-            Provide a reason for rejecting this delivery.
-          </DialogDescription>
-        </DialogHeader>
-        <Input
-          placeholder="Rejection reason..."
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleSubmit()
-          }}
-        />
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={!reason.trim()}>
-            Reject
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 const AGENT_PHASES = new Set<Phase>(["plan", "implement", "review"])
 
 const AGENT_BUTTON_LABELS: Record<string, string> = {
@@ -108,6 +46,8 @@ const AGENT_BUTTON_LABELS: Record<string, string> = {
   implement: "Run Implement",
   review: "Run Review",
 }
+const AGENT_LABEL_CANDIDATES = Object.values(AGENT_BUTTON_LABELS)
+const PHASE_CANDIDATES = Object.keys(PHASE_CLASSES)
 
 function ActionButtons({
   phase,
@@ -120,11 +60,10 @@ function ActionButtons({
   phase: Phase
   runStatus: RunStatus
   onApprove: () => void
-  onReject: (reason: string) => void
+  onReject: () => void
   onCancel: () => void
   onRunAgent: () => void
 }) {
-  const [rejectOpen, setRejectOpen] = useState(false)
 
   if (runStatus === "running") {
     return (
@@ -143,7 +82,9 @@ function ActionButtons({
     <div className="flex gap-2 flex-wrap">
       {canRunAgent && (
         <Button className="bg-violet-600 hover:bg-violet-700" onClick={onRunAgent}>
-          {AGENT_BUTTON_LABELS[phase] ?? "Run Agent"}
+          <StableText candidates={AGENT_LABEL_CANDIDATES}>
+            {AGENT_BUTTON_LABELS[phase] ?? "Run Agent"}
+          </StableText>
         </Button>
       )}
       {canApproveReject && (
@@ -151,14 +92,9 @@ function ActionButtons({
           <Button className="bg-blue-600 hover:bg-blue-700" onClick={onApprove}>
             Approve
           </Button>
-          <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={() => setRejectOpen(true)}>
+          <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" onClick={onReject}>
             Reject
           </Button>
-          <RejectDialog
-            open={rejectOpen}
-            onOpenChange={setRejectOpen}
-            onConfirm={onReject}
-          />
         </>
       )}
     </div>
@@ -389,12 +325,7 @@ function LiveTranscript({ deliveryId, runStatus }: { deliveryId: string; runStat
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          Live Transcript
-          {!done && (
-            <span className="inline-block h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-          )}
-        </CardTitle>
+        <CardTitle>Live Transcript</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-1 max-h-[600px] overflow-y-auto">
@@ -514,9 +445,9 @@ export function DeliveryShow() {
         <h1 className="text-2xl font-bold">{delivery.summary}</h1>
         <div className="flex items-center gap-2 text-sm">
           <Badge variant="secondary" className={PHASE_CLASSES[delivery.phase]}>
-            {delivery.phase}
+            <StableText candidates={PHASE_CANDIDATES}>{delivery.phase}</StableText>
           </Badge>
-          <RunStatusBadge status={delivery.run_status} animate />
+          <RunStatusBadge status={delivery.run_status} />
         </div>
       </div>
 

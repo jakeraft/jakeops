@@ -59,8 +59,3 @@ class TestBuildPrompt:
         d = _delivery(plan={"content": "SECRET_PLAN", "generated_at": "", "model": "", "cwd": ""})
         result = build_prompt(d)
         assert "SECRET_PLAN" not in result
-
-    def test_ignores_reject_reason(self):
-        d = _delivery(reject_reason="Missing error handling")
-        result = build_prompt(d)
-        assert "Missing error handling" not in result

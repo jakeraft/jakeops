@@ -10,10 +10,6 @@ from app.domain.models.delivery import DeliveryCreate, DeliveryUpdate, RunStatus
 router = APIRouter()
 
 
-class RejectBody(BaseModel):
-    reason: str = ""
-
-
 class CollectBody(BaseModel):
     session_id: str
 
@@ -107,9 +103,9 @@ async def approve(delivery_id: str, background: BackgroundTasks, uc=Depends(get_
 
 
 @router.post("/deliveries/{delivery_id}/reject")
-def reject(delivery_id: str, body: RejectBody, uc=Depends(get_usecases)):
+def reject(delivery_id: str, uc=Depends(get_usecases)):
     try:
-        result = uc.reject(delivery_id, body.reason)
+        result = uc.reject(delivery_id)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
     if result is None:
