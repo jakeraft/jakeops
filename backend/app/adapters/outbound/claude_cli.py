@@ -1,33 +1,26 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 import structlog
-
-from app.domain.models.stream import StreamEvent
 
 logger = structlog.get_logger()
 
 
-def _extract_session_id(events: list[StreamEvent]) -> str | None:
-    """Extract session_id from stream events."""
-    for ev in events:
-        if ev.session_id:
-            return ev.session_id
-    return None
-
-
 class ClaudeCliAdapter:
-    async def run_with_stream(
+    def __init__(self) -> None:
+        self._processes: dict[str, asyncio.subprocess.Process] = {}
+
+    async def run(
         self,
         prompt: str,
         cwd: str,
         allowed_tools: list[str] | None = None,
         append_system_prompt: str | None = None,
-    ) -> tuple[str, list[StreamEvent], str | None]:
-        from app.domain.services.stream_parser import parse_stream_lines, extract_metadata
-
-        cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose"]
+        delivery_id: str | None = None,
+    ) -> tuple[str, str | None]:
+        cmd = ["claude", "-p", prompt, "--output-format", "json"]
         if allowed_tools:
             cmd += ["--allowedTools", ",".join(allowed_tools)]
         if append_system_prompt:
@@ -40,18 +33,34 @@ class ClaudeCliAdapter:
             stderr=asyncio.subprocess.PIPE,
         )
 
+        if delivery_id:
+            self._processes[delivery_id] = proc
+
         try:
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
         except asyncio.TimeoutError:
             proc.kill()
             await proc.wait()
             raise RuntimeError("claude CLI timeout (exceeded 600s)")
+        finally:
+            if delivery_id:
+                self._processes.pop(delivery_id, None)
 
         if proc.returncode != 0:
             raise RuntimeError(f"claude CLI failed: {stderr.decode().strip()}")
 
-        lines = stdout.decode().strip().splitlines()
-        events = parse_stream_lines(lines)
-        session_id = _extract_session_id(events)
-        metadata = extract_metadata(events)
-        return (metadata.result_text, events, session_id)
+        data = json.loads(stdout.decode())
+        result_text = data.get("result", "")
+        session_id = data.get("session_id")
+
+        if data.get("is_error", False):
+            raise RuntimeError(f"claude CLI returned error: {result_text}")
+
+        return (result_text, session_id)
+
+    def kill(self, delivery_id: str) -> bool:
+        proc = self._processes.pop(delivery_id, None)
+        if proc is None:
+            return False
+        proc.kill()
+        return True
