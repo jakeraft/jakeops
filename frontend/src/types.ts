@@ -1,4 +1,5 @@
-// Enum types — re-exported from generated file (SSOT: backend Python enums)
+// All shared types — re-exported from generated file (SSOT: backend Python models)
+// Run `npm run sync-types` after changing backend domain models.
 export type {
   Phase,
   RunStatus,
@@ -6,61 +7,35 @@ export type {
   Verdict,
   RefRole,
   RefType,
+  SourceType,
+  AgentRunMode,
+  AgentRunStatus,
+  Ref,
+  Session,
+  Plan,
+  ExecutionStats,
+  PhaseRun,
+  AgentRun,
+  Source,
+  SourceCreate,
+  SourceUpdate,
 } from "./types.generated"
 
-export { PHASES, RUN_STATUSES, EXECUTOR_KINDS } from "./types.generated"
+export {
+  PHASES,
+  RUN_STATUSES,
+  EXECUTOR_KINDS,
+  VERDICTS,
+  SOURCE_TYPES,
+  AGENT_RUN_MODES,
+  AGENT_RUN_STATUSES,
+} from "./types.generated"
 
-// --- Hand-authored interfaces below ---
+// --- Hand-authored types below (no backend Pydantic model) ---
 
-import type { ExecutorKind, Phase, RefRole, RefType, RunStatus, Verdict } from "./types.generated"
+import type { AgentRun, Phase, PhaseRun, Plan, Ref, RunStatus } from "./types.generated"
 
-// Refs
-export interface Ref {
-  role: RefRole
-  type: RefType
-  label: string
-  url?: string
-}
-
-// Phase run history
-export interface PhaseRun {
-  phase: Phase
-  run_status: RunStatus
-  executor: ExecutorKind
-  verdict?: Verdict
-  started_at?: string
-  ended_at?: string
-}
-
-// Agent execution
-export interface ExecutionStats {
-  cost_usd: number
-  input_tokens: number
-  output_tokens: number
-  duration_ms: number
-}
-
-export interface AgentRun {
-  id: string
-  mode: "plan" | "execution" | "fix"
-  status: "success" | "failed"
-  created_at: string
-  session: { model: string }
-  stats: ExecutionStats
-  error?: string
-  summary?: string
-  session_id?: string
-}
-
-// Plan
-export interface Plan {
-  content: string
-  generated_at: string
-  model: string
-  cwd: string
-}
-
-// Delivery
+// Delivery — full entity assembled at usecase level
 export interface Delivery {
   id: string
   seq: number
@@ -81,39 +56,7 @@ export interface Delivery {
   reject_reason?: string
 }
 
-// Source
-export type SourceType = "github"
-
-export interface Source {
-  id: string
-  type: SourceType
-  owner: string
-  repo: string
-  created_at: string
-  token: string
-  active: boolean
-  endpoint: string
-  checkpoints: string[]
-  last_polled_at?: string
-}
-
-export interface SourceCreate {
-  type: SourceType
-  owner: string
-  repo: string
-  token?: string
-  endpoint?: string
-  checkpoints?: string[]
-}
-
-export interface SourceUpdate {
-  token?: string
-  active?: boolean
-  endpoint?: string
-  checkpoints?: string[]
-}
-
-// Transcript
+// Transcript — frontend-only representation
 export interface TranscriptBlock {
   type: string
   text?: string

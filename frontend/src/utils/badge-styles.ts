@@ -1,4 +1,4 @@
-import type { AgentRun, ExecutorKind, Phase, RunStatus } from "@/types"
+import type { AgentRunMode, AgentRunStatus, ExecutorKind, Phase, RunStatus } from "@/types"
 
 export const PHASE_CLASSES: Record<Phase, string> = {
   intake: "bg-slate-100 text-slate-700",
@@ -24,13 +24,13 @@ export const EXECUTOR_CLASSES: Record<ExecutorKind, string> = {
   agent: "bg-violet-100 text-violet-700",
 }
 
-export const MODE_CLASSES: Record<AgentRun["mode"], string> = {
+export const MODE_CLASSES: Record<AgentRunMode, string> = {
   plan: "bg-blue-100 text-blue-700",
   execution: "bg-violet-100 text-violet-700",
   fix: "bg-amber-100 text-amber-700",
 }
 
-export const RUN_STATUS_CLASSES: Record<AgentRun["status"], string> = {
+export const RUN_STATUS_CLASSES: Record<AgentRunStatus, string> = {
   success: "bg-green-100 text-green-700",
   failed: "bg-red-100 text-red-700",
 }
