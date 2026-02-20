@@ -183,3 +183,47 @@ class TestGeneratePlan:
         phases = [(r["phase"], r["run_status"]) for r in delivery["phase_runs"]]
         assert ("plan", "running") in phases
         assert ("plan", "succeeded") in phases
+
+
+class TestRunImplement:
+    @pytest.mark.asyncio
+    async def test_executes_runner_with_plan_context(self, uc, runner):
+        result = _create_delivery(uc, phase="implement", run_status="pending")
+        # Set plan on delivery
+        uc.update_delivery(result["id"], DeliveryUpdate(
+            plan=Plan(content="## Steps\n1. Fix X", generated_at="2026-01-01T00:00:00", model="test", cwd="/tmp"),
+        ))
+        impl_result = await uc.run_implement(result["id"])
+
+        assert impl_result["run_status"] == "succeeded"
+        assert len(runner.calls) == 1
+        assert "## Steps" in runner.calls[0]["prompt"]
+        # No tool restrictions for implement
+        assert runner.calls[0]["allowed_tools"] is None
+
+    @pytest.mark.asyncio
+    async def test_invalid_phase(self, uc):
+        result = _create_delivery(uc, phase="plan", run_status="succeeded")
+        with pytest.raises(ValueError, match="run_implement"):
+            await uc.run_implement(result["id"])
+
+    @pytest.mark.asyncio
+    async def test_invalid_run_status(self, uc):
+        result = _create_delivery(uc, phase="implement", run_status="running")
+        with pytest.raises(ValueError, match="run_implement"):
+            await uc.run_implement(result["id"])
+
+    @pytest.mark.asyncio
+    async def test_saves_transcript(self, uc):
+        result = _create_delivery(uc, phase="implement", run_status="pending")
+        uc.update_delivery(result["id"], DeliveryUpdate(
+            plan=Plan(content="plan", generated_at="2026-01-01T00:00:00", model="test", cwd="/tmp"),
+        ))
+        impl_result = await uc.run_implement(result["id"])
+        transcript = uc.get_run_transcript(result["id"], impl_result["run_id"])
+        assert transcript is not None
+
+    @pytest.mark.asyncio
+    async def test_not_found(self, uc):
+        result = await uc.run_implement("nonexist")
+        assert result is None
