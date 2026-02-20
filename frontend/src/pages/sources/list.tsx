@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { Plus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -9,7 +10,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,111 +35,119 @@ import { PHASE_CLASSES } from "@/utils/badge-styles"
 import { formatRelativeTime } from "@/utils/format"
 import { PHASES } from "@/utils/kanban-rules"
 
-// --- Add Source Dialog ---
+// --- Source Form Dialog (shared by Add / Edit) ---
 
-function AddSourceDialog({
-  onSubmit,
+function SourceFormDialog({
+  source,
+  open,
+  onOpenChange,
+  onCreate,
+  onUpdate,
+  onDelete,
 }: {
-  onSubmit: (body: SourceCreate) => Promise<void>
+  source: Source | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onCreate: (body: SourceCreate) => Promise<void>
+  onUpdate: (id: string, body: SourceUpdate) => Promise<void>
+  onDelete: (source: Source) => Promise<void>
 }) {
-  const [open, setOpen] = useState(false)
-  const [owner, setOwner] = useState("")
-  const [repo, setRepo] = useState("")
+  const isEdit = !!source
+  const [owner, setOwner] = useState(source?.owner ?? "")
+  const [repo, setRepo] = useState(source?.repo ?? "")
   const [token, setToken] = useState("")
-  const [endpoint, setEndpoint] = useState("deploy")
-  const [checkpoints, setCheckpoints] = useState<string[]>(["plan", "implement", "review"])
+  const [active, setActive] = useState(source?.active ?? true)
+  const [endpoint, setEndpoint] = useState(source?.endpoint ?? "deploy")
+  const [checkpoints, setCheckpoints] = useState<string[]>(
+    source?.checkpoints ?? ["plan", "implement", "review"],
+  )
   const [submitting, setSubmitting] = useState(false)
 
   function reset() {
-    setOwner("")
-    setRepo("")
+    setOwner(source?.owner ?? "")
+    setRepo(source?.repo ?? "")
     setToken("")
-    setEndpoint("deploy")
-    setCheckpoints(["plan", "implement", "review"])
+    setActive(source?.active ?? true)
+    setEndpoint(source?.endpoint ?? "deploy")
+    setCheckpoints(source?.checkpoints ?? ["plan", "implement", "review"])
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setSubmitting(true)
     try {
-      await onSubmit({
-        type: "github",
-        owner,
-        repo,
-        token: token || undefined,
-        endpoint: endpoint || undefined,
-        checkpoints,
-      })
-      reset()
-      setOpen(false)
+      if (isEdit) {
+        const body: SourceUpdate = { active, endpoint, checkpoints }
+        if (token) body.token = token
+        await onUpdate(source.id, body)
+      } else {
+        await onCreate({
+          type: "github",
+          owner,
+          repo,
+          token: token || undefined,
+          endpoint: endpoint || undefined,
+          checkpoints,
+        })
+      }
+      onOpenChange(false)
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>Add Source</Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (v) reset() }}>
       <DialogContent>
         <form onSubmit={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Add Source</DialogTitle>
+            <DialogTitle>{isEdit ? "Edit Source" : "Add Source"}</DialogTitle>
             <DialogDescription>
-              Connect a GitHub repository as a delivery source.
+              {isEdit
+                ? `Update settings for ${source.owner}/${source.repo}.`
+                : "Connect a GitHub repository as a delivery source."}
             </DialogDescription>
           </DialogHeader>
           <div className="mt-4 grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="add-type">Type</Label>
-              <Input id="add-type" value="github" disabled />
+              <Label>Type</Label>
+              <Input value="github" disabled />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="add-owner">Owner</Label>
+              <Label>Owner</Label>
               <Input
-                id="add-owner"
                 placeholder="e.g. acme"
                 value={owner}
                 onChange={(e) => setOwner(e.target.value)}
+                disabled={isEdit}
                 required
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="add-repo">Repo</Label>
+              <Label>Repo</Label>
               <Input
-                id="add-repo"
                 placeholder="e.g. backend"
                 value={repo}
                 onChange={(e) => setRepo(e.target.value)}
+                disabled={isEdit}
                 required
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="add-token">Token</Label>
+              <Label>Token</Label>
               <Input
-                id="add-token"
                 type="password"
-                placeholder="GitHub personal access token"
+                placeholder={isEdit ? "Leave blank to keep current" : "GitHub personal access token"}
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="add-endpoint">Endpoint</Label>
-              <Select value={endpoint} onValueChange={setEndpoint}>
-                <SelectTrigger id="add-endpoint">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PHASES.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {isEdit && (
+              <div className="flex items-center gap-3">
+                <Switch checked={active} onCheckedChange={setActive} />
+                <Label>Active</Label>
+              </div>
+            )}
             <div className="grid gap-2">
               <Label>Checkpoints</Label>
               <div className="grid grid-cols-2 gap-2">
@@ -165,106 +173,10 @@ function AddSourceDialog({
                 )}
               </div>
             </div>
-          </div>
-          <DialogFooter className="mt-6">
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Creating..." : "Create"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// --- Edit Source Dialog ---
-
-function EditSourceDialog({
-  source,
-  onSubmit,
-}: {
-  source: Source
-  onSubmit: (id: string, body: SourceUpdate) => Promise<void>
-}) {
-  const [open, setOpen] = useState(false)
-  const [token, setToken] = useState("")
-  const [active, setActive] = useState(source.active)
-  const [endpoint, setEndpoint] = useState(source.endpoint)
-  const [checkpoints, setCheckpoints] = useState<string[]>(source.checkpoints)
-  const [submitting, setSubmitting] = useState(false)
-
-  function resetToSource() {
-    setToken("")
-    setActive(source.active)
-    setEndpoint(source.endpoint)
-    setCheckpoints(source.checkpoints)
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setSubmitting(true)
-    try {
-      const body: SourceUpdate = {
-        active,
-        endpoint: endpoint,
-        checkpoints,
-      }
-      if (token) {
-        body.token = token
-      }
-      await onSubmit(source.id, body)
-      setOpen(false)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        setOpen(v)
-        if (v) resetToSource()
-      }}
-    >
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-7 text-xs">
-          Edit
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>Edit Source</DialogTitle>
-            <DialogDescription>
-              Update settings for {source.owner}/{source.repo}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="mt-4 grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor={`edit-token-${source.id}`}>Token</Label>
-              <Input
-                id={`edit-token-${source.id}`}
-                type="password"
-                placeholder="Leave blank to keep current"
-                value={token}
-                onChange={(e) => setToken(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center gap-3">
-              <Switch
-                id={`edit-active-${source.id}`}
-                checked={active}
-                onCheckedChange={setActive}
-              />
-              <Label htmlFor={`edit-active-${source.id}`}>Active</Label>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor={`edit-endpoint-${source.id}`}>
-                Endpoint
-              </Label>
+              <Label>Endpoint</Label>
               <Select value={endpoint} onValueChange={setEndpoint}>
-                <SelectTrigger id={`edit-endpoint-${source.id}`}>
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -276,36 +188,27 @@ function EditSourceDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="grid gap-2">
-              <Label>Checkpoints</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {PHASES.filter((p) => p !== "intake" && p !== "close").map(
-                  (p) => (
-                    <label
-                      key={p}
-                      className="flex items-center gap-2 text-sm"
-                    >
-                      <Checkbox
-                        checked={checkpoints.includes(p)}
-                        onCheckedChange={(checked) => {
-                          setCheckpoints((prev) =>
-                            checked
-                              ? [...prev, p]
-                              : prev.filter((c) => c !== p),
-                          )
-                        }}
-                      />
-                      {p}
-                    </label>
-                  ),
-                )}
-              </div>
-            </div>
           </div>
           <DialogFooter className="mt-6">
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Saving..." : "Save"}
-            </Button>
+            <div className="flex w-full items-center justify-between">
+              {isEdit ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => onDelete(source)}
+                >
+                  Delete
+                </Button>
+              ) : (
+                <div />
+              )}
+              <Button type="submit" disabled={submitting}>
+                {submitting
+                  ? isEdit ? "Saving..." : "Creating..."
+                  : isEdit ? "Save" : "Create"}
+              </Button>
+            </div>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -323,18 +226,9 @@ export function SourceList() {
     createSource,
     updateSource,
     deleteSource,
-    syncNow,
   } = useSources()
-  const [syncing, setSyncing] = useState(false)
-
-  async function handleSyncNow() {
-    setSyncing(true)
-    try {
-      await syncNow()
-    } finally {
-      setSyncing(false)
-    }
-  }
+  const [addOpen, setAddOpen] = useState(false)
+  const [editSource, setEditSource] = useState<Source | null>(null)
 
   async function handleDelete(source: Source) {
     const confirmed = window.confirm(
@@ -342,6 +236,7 @@ export function SourceList() {
     )
     if (!confirmed) return
     await deleteSource(source.id)
+    setEditSource(null)
   }
 
   if (loading) {
@@ -353,20 +248,7 @@ export function SourceList() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-end">
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={handleSyncNow}
-            disabled={syncing}
-          >
-            {syncing ? "Syncing..." : "Sync Now"}
-          </Button>
-          <AddSourceDialog onSubmit={createSource} />
-        </div>
-      </div>
-
+    <div className="space-y-0">
       {sources.length === 0 ? (
         <p className="text-muted-foreground">
           No sources configured. Add a GitHub repository to get started.
@@ -379,15 +261,18 @@ export function SourceList() {
               <TableHead>Source</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Active</TableHead>
-              <TableHead>Endpoint</TableHead>
               <TableHead>Checkpoints</TableHead>
+              <TableHead>Endpoint</TableHead>
               <TableHead>Last Synced</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {sources.map((s, i) => (
-              <TableRow key={s.id}>
+              <TableRow
+                key={s.id}
+                className="cursor-pointer"
+                onClick={() => setEditSource(s)}
+              >
                 <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                 <TableCell className="font-medium">
                   <a
@@ -395,6 +280,7 @@ export function SourceList() {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 underline-offset-4 hover:underline"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     {s.owner}/{s.repo}
                   </a>
@@ -405,7 +291,6 @@ export function SourceList() {
                     {s.active ? "active" : "inactive"}
                   </Badge>
                 </TableCell>
-                <TableCell>{s.endpoint}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
                     {s.checkpoints.map((cp) => (
@@ -419,31 +304,53 @@ export function SourceList() {
                     ))}
                   </div>
                 </TableCell>
+                <TableCell>
+                  <Badge
+                    variant="secondary"
+                    className={PHASE_CLASSES[s.endpoint as Phase]}
+                  >
+                    {s.endpoint}
+                  </Badge>
+                </TableCell>
                 <TableCell className="text-muted-foreground">
                   {s.last_polled_at
                     ? formatRelativeTime(s.last_polled_at)
                     : "Never"}
                 </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <EditSourceDialog
-                      source={s}
-                      onSubmit={updateSource}
-                    />
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => handleDelete(s)}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
+      )}
+
+      <div className="flex justify-center pt-4">
+        <button
+          onClick={() => setAddOpen(true)}
+          className="flex cursor-pointer items-center gap-1.5 rounded-md border border-dashed px-5 py-2 text-xs text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
+        >
+          <Plus className="size-3.5" />
+          <span>Add Source</span>
+        </button>
+      </div>
+
+      <SourceFormDialog
+        source={null}
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        onCreate={createSource}
+        onUpdate={updateSource}
+        onDelete={handleDelete}
+      />
+
+      {editSource && (
+        <SourceFormDialog
+          source={editSource}
+          open={!!editSource}
+          onOpenChange={(v) => { if (!v) setEditSource(null) }}
+          onCreate={createSource}
+          onUpdate={updateSource}
+          onDelete={handleDelete}
+        />
       )}
     </div>
   )
