@@ -32,7 +32,7 @@ frontend/src/
 ├── App.tsx
 ├── main.tsx
 ├── pages/
-│   ├── issues/
+│   ├── deliveries/
 │   ├── sources/
 │   └── worker/
 ├── components/

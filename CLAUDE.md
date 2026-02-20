@@ -53,7 +53,7 @@ cd backend && pip install -e ".[test]" && python -m pytest -v
 ## Architecture Notes
 
 - Monorepo: `frontend/` + `backend/`
-- File-based data: `issues/`, `sources/`
+- File-based data: `deliveries/`, `sources/`
 - API proxy in dev: `/api` -> `http://localhost:8000`
 - Backend architecture: Ports/Adapters + Use Cases
 

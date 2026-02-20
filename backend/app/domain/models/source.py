@@ -15,6 +15,7 @@ class Source(BaseModel):
     created_at: str
     token: str = ""
     active: bool = True
+    default_exit_phase: str = "deploy"
 
 
 class SourceCreate(BaseModel):
@@ -22,8 +23,10 @@ class SourceCreate(BaseModel):
     owner: str
     repo: str
     token: str = ""
+    default_exit_phase: str = "deploy"
 
 
 class SourceUpdate(BaseModel):
     token: str | None = None
     active: bool | None = None
+    default_exit_phase: str | None = None

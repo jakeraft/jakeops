@@ -32,8 +32,8 @@ paths:
 
 ## Naming
 - Component files: kebab-case or domain-grouped (list.tsx, show.tsx)
-- Components: PascalCase (IssueList)
-- Hooks: camelCase with use prefix (useIssues)
+- Components: PascalCase (DeliveryList)
+- Hooks: camelCase with use prefix (useDeliveries)
 - Utilities: camelCase (formatDateTime)
 
 ## State Management

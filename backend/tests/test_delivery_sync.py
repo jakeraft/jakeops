@@ -2,8 +2,8 @@ import hashlib
 
 from app.domain.constants import ID_HEX_LENGTH
 from app.domain.models.github import GitHubIssue
-from app.domain.models.issue import IssueCreate
-from app.usecases.issue_sync import IssueSyncUseCase
+from app.domain.models.delivery import DeliveryCreate
+from app.usecases.delivery_sync import DeliverySyncUseCase
 
 
 class FakeGitHubRepo:
@@ -28,50 +28,51 @@ class FakeSourceRepo:
         self.saved[source_id] = data
 
 
-class FakeIssueUseCases:
+class FakeDeliveryUseCases:
     def __init__(self):
-        self.created: list[IssueCreate] = []
-        self._issues: dict[str, dict] = {}
+        self.created: list[DeliveryCreate] = []
+        self._deliveries: dict[str, dict] = {}
 
-    def get_issue(self, issue_id: str) -> dict | None:
-        return self._issues.get(issue_id)
+    def get_delivery(self, delivery_id: str) -> dict | None:
+        return self._deliveries.get(delivery_id)
 
-    def create_issue(self, body: IssueCreate) -> dict:
+    def create_delivery(self, body: DeliveryCreate) -> dict:
         self.created.append(body)
         raw = f"{body.repository}:{body.refs[0].label}"
-        issue_id = hashlib.sha256(raw.encode()).hexdigest()[:ID_HEX_LENGTH]
-        self._issues[issue_id] = {"id": issue_id}
-        return {"id": issue_id, "status": "created"}
+        delivery_id = hashlib.sha256(raw.encode()).hexdigest()[:ID_HEX_LENGTH]
+        self._deliveries[delivery_id] = {"id": delivery_id}
+        return {"id": delivery_id, "status": "created"}
 
 
-def test_sync_creates_issue_for_new_github_issue():
+def test_sync_creates_delivery_for_new_github_issue():
     issues = [GitHubIssue(number=1, title="Bug", html_url="https://github.com/o/r/issues/1", state="open")]
     github_repo = FakeGitHubRepo(issues)
     source_repo = FakeSourceRepo([{"id": "s1", "owner": "o", "repo": "r"}])
-    issue_uc = FakeIssueUseCases()
+    delivery_uc = FakeDeliveryUseCases()
 
-    uc = IssueSyncUseCase(github_repo, source_repo, issue_uc)
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
     uc.sync_once()
 
-    assert len(issue_uc.created) == 1
-    body = issue_uc.created[0]
-    assert body.status.value == "new"
+    assert len(delivery_uc.created) == 1
+    body = delivery_uc.created[0]
+    assert body.phase.value == "intake"
+    assert body.run_status.value == "pending"
     assert body.refs[0].type.value == "github_issue"
     assert body.refs[0].label == "#1"
     assert body.repository == "o/r"
 
 
-def test_sync_skips_existing_issue():
+def test_sync_skips_existing_delivery():
     issues = [GitHubIssue(number=1, title="Bug", html_url="https://github.com/o/r/issues/1", state="open")]
     github_repo = FakeGitHubRepo(issues)
     source_repo = FakeSourceRepo([{"id": "s1", "owner": "o", "repo": "r"}])
-    issue_uc = FakeIssueUseCases()
+    delivery_uc = FakeDeliveryUseCases()
 
-    uc = IssueSyncUseCase(github_repo, source_repo, issue_uc)
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
     uc.sync_once()
     uc.sync_once()
 
-    assert len(issue_uc.created) == 1
+    assert len(delivery_uc.created) == 1
 
 
 def test_sync_multiple_sources():
@@ -81,23 +82,23 @@ def test_sync_multiple_sources():
         {"id": "s1", "owner": "o", "repo": "r"},
         {"id": "s2", "owner": "o", "repo": "r2"},
     ])
-    issue_uc = FakeIssueUseCases()
+    delivery_uc = FakeDeliveryUseCases()
 
-    uc = IssueSyncUseCase(github_repo, source_repo, issue_uc)
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
     uc.sync_once()
 
-    assert len(issue_uc.created) == 2
+    assert len(delivery_uc.created) == 2
 
 
 def test_sync_no_sources():
     github_repo = FakeGitHubRepo([])
     source_repo = FakeSourceRepo([])
-    issue_uc = FakeIssueUseCases()
+    delivery_uc = FakeDeliveryUseCases()
 
-    uc = IssueSyncUseCase(github_repo, source_repo, issue_uc)
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
     uc.sync_once()
 
-    assert len(issue_uc.created) == 0
+    assert len(delivery_uc.created) == 0
 
 
 def test_sync_skips_inactive_source():
@@ -106,13 +107,13 @@ def test_sync_skips_inactive_source():
     source_repo = FakeSourceRepo([
         {"id": "s1", "owner": "o", "repo": "r", "active": False},
     ])
-    issue_uc = FakeIssueUseCases()
+    delivery_uc = FakeDeliveryUseCases()
 
-    uc = IssueSyncUseCase(github_repo, source_repo, issue_uc)
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
     created = uc.sync_once()
 
     assert created == 0
-    assert len(issue_uc.created) == 0
+    assert len(delivery_uc.created) == 0
 
 
 def test_sync_passes_source_token():
@@ -121,9 +122,9 @@ def test_sync_passes_source_token():
     source_repo = FakeSourceRepo([
         {"id": "s1", "owner": "o", "repo": "r", "token": "ghp_abc123"},
     ])
-    issue_uc = FakeIssueUseCases()
+    delivery_uc = FakeDeliveryUseCases()
 
-    uc = IssueSyncUseCase(github_repo, source_repo, issue_uc)
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
     uc.sync_once()
 
     assert github_repo.last_token == "ghp_abc123"
@@ -136,10 +137,26 @@ def test_sync_legacy_source_without_token_and_active():
     source_repo = FakeSourceRepo([
         {"id": "s1", "owner": "o", "repo": "r"},
     ])
-    issue_uc = FakeIssueUseCases()
+    delivery_uc = FakeDeliveryUseCases()
 
-    uc = IssueSyncUseCase(github_repo, source_repo, issue_uc)
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
     created = uc.sync_once()
 
     assert created == 1
     assert github_repo.last_token == ""
+
+
+def test_sync_uses_source_default_exit_phase():
+    """Source with default_exit_phase passes it through to created deliveries."""
+    issues = [GitHubIssue(number=1, title="Bug", html_url="https://github.com/o/r/issues/1", state="open")]
+    github_repo = FakeGitHubRepo(issues)
+    source_repo = FakeSourceRepo([
+        {"id": "s1", "owner": "o", "repo": "r", "default_exit_phase": "verify"},
+    ])
+    delivery_uc = FakeDeliveryUseCases()
+
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
+    uc.sync_once()
+
+    body = delivery_uc.created[0]
+    assert body.exit_phase.value == "verify"

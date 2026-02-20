@@ -24,59 +24,62 @@ System principle: **System repeats, Agent decides.**
 
 ## Core Domain
 
-### Issue
+### Delivery
 
 Single orchestration unit for a delivery workflow.
 
-- lifecycle state (`status`)
+- workflow phase (`phase`) + execution status (`run_status`)
+- variable-length pipeline via `exit_phase`
 - references (`refs`: trigger/output/parent)
 - optional plan metadata
 - run history and transcripts
+- phase transition history (`phase_runs`)
 
 ### Source
 
-Issue ingestion source (currently GitHub repositories).
+Delivery ingestion source (currently GitHub repositories).
 
 - owner/repo coordinates
 - optional token
 - active flag
+- `default_exit_phase` for pipeline length control
 
 ### Worker status
 
-In-memory status for background runners (currently issue sync poller).
+In-memory status for background runners (currently delivery sync poller).
 
-## Current State Model
+## Phase Model (v4)
 
 ```text
-new -> planned -> approved -> implemented -> ci_passed -> deployed -> done
-* -> failed
-* -> canceled
+intake -> plan -> implement -> review -> verify -> deploy -> observe -> close
 ```
 
-Gate transitions currently exposed by API actions:
+Each phase has an independent `run_status`: `pending | running | succeeded | failed | blocked | canceled`.
 
-- `approve`
-- `reject`
-- `retry`
-- `cancel`
-- `generate-plan`
+Gate phases requiring human approval: `plan`, `review`, `deploy`.
+
+Actions:
+
+- `approve` — advance past gate phase (requires `run_status == succeeded`)
+- `reject` — revert to previous phase at gate
+- `retry` — reset `run_status` to `pending` on same phase (from `failed`)
+- `cancel` — set `run_status = canceled` (terminal)
+- `generate-plan` — trigger plan generation (only from `intake`)
 
 ## Runtime Components
 
 - FastAPI backend (`backend/app/main.py`)
 - React frontend (`frontend/src`)
-- file-based repositories (`issues/`, `sources/`)
-- GitHub polling loop (`IssueSyncUseCase`)
+- file-based repositories (`deliveries/`, `sources/`)
+- GitHub polling loop (`DeliverySyncUseCase`)
 
 ## API Surface (current)
 
-- `/api/issues/*`
+- `/api/deliveries/*`
 - `/api/sources/*`
 - `/api/worker/status`
 
 ## Evolution Path
 
-- formal phase model (`phase` + `run_status`)
-- stronger actor attribution (`system|agent|human`)
 - deeper CI/CD provider integrations
 - move persistence from local files to DB/object storage

@@ -53,10 +53,10 @@ def test_unregistered_worker_ignored():
 
 def test_multiple_workers():
     registry = WorkerRegistry()
-    registry.register("issue_sync", label="Issue Sync", interval_sec=60, enabled=True)
+    registry.register("delivery_sync", label="Delivery Sync", interval_sec=60, enabled=True)
     registry.register("plan_worker", label="Plan Worker", interval_sec=30, enabled=True)
     registry.register("exec_worker", label="Execution Worker", interval_sec=30, enabled=False)
     statuses = registry.get_all()
     assert len(statuses) == 3
     names = [s.name for s in statuses]
-    assert names == ["issue_sync", "plan_worker", "exec_worker"]
+    assert names == ["delivery_sync", "plan_worker", "exec_worker"]

@@ -53,7 +53,7 @@ jakeops/
 
 - Product vision: `docs/planning.md`
 - Architecture: `docs/architecture.md`
-- Issue schema: `docs/issue-schema.md`
+- Delivery model: `docs/delivery-model.md`
 - Frontend conventions: `docs/frontend-conventions.md`
 
 ## Tests and Checks

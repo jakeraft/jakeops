@@ -72,13 +72,15 @@ Thumbs.db
 .vscode-test
 
 # Repository-specific runtime/generated data
-/issues/
+/deliveries/
 /sources/
 /reports/
 /skills/
 /rules/
 /subscriptions/
-/issues/*/legacy.transcript.json
 
 # Local worktrees
 /.worktrees/
+
+# Claude local config
+CLAUDE.local.md

@@ -3,16 +3,38 @@ from enum import Enum
 from pydantic import BaseModel, Field
 
 
-class IssueStatus(str, Enum):
-    new = "new"
-    planned = "planned"
-    approved = "approved"
-    implemented = "implemented"
-    ci_passed = "ci_passed"
-    deployed = "deployed"
-    done = "done"
+class Phase(str, Enum):
+    intake = "intake"
+    plan = "plan"
+    implement = "implement"
+    review = "review"
+    verify = "verify"
+    deploy = "deploy"
+    observe = "observe"
+    close = "close"
+
+
+class RunStatus(str, Enum):
+    pending = "pending"
+    running = "running"
+    succeeded = "succeeded"
     failed = "failed"
+    blocked = "blocked"
     canceled = "canceled"
+
+
+class ExecutorKind(str, Enum):
+    system = "system"
+    agent = "agent"
+    human = "human"
+
+
+class PhaseRun(BaseModel):
+    phase: Phase
+    run_status: RunStatus
+    executor: ExecutorKind
+    started_at: str | None = None
+    ended_at: str | None = None
 
 
 class RefRole(str, Enum):
@@ -57,18 +79,21 @@ class ExecutionStats(BaseModel):
     duration_ms: int = 0
 
 
-class IssueCreate(BaseModel, extra="ignore"):
+class DeliveryCreate(BaseModel, extra="ignore"):
     schema_version: int | None = None
     id: str | None = None
     created_at: str | None = None
-    status: IssueStatus
+    phase: Phase = Phase.intake
+    run_status: RunStatus = RunStatus.pending
+    exit_phase: Phase | None = None
     summary: str
     repository: str
     refs: list[Ref]
 
 
-class IssueUpdate(BaseModel):
-    status: IssueStatus | None = None
+class DeliveryUpdate(BaseModel):
+    phase: Phase | None = None
+    run_status: RunStatus | None = None
     summary: str | None = None
     plan: Plan | None = None
     refs: list[Ref] | None = None

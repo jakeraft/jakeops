@@ -2,7 +2,7 @@ from enum import Enum
 
 from pydantic import BaseModel
 
-from app.domain.models.issue import ExecutionStats, Session
+from app.domain.models.delivery import ExecutionStats, Session
 
 
 class AgentRunMode(str, Enum):

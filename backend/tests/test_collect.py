@@ -13,18 +13,16 @@ def client():
 
 
 @pytest.fixture
-def issue_id(client):
+def delivery_id(client):
     body = {
-        "status": "approved",
-        "summary": "test issue",
+        "phase": "intake",
+        "run_status": "pending",
+        "summary": "test delivery",
         "repository": "owner/repo",
         "refs": [{"role": "trigger", "type": "github_issue", "label": "#1"}],
     }
-    resp = client.post("/api/issues", json=body)
-    iid = resp.json()["id"]
-    # change to approved status
-    client.patch(f"/api/issues/{iid}", json={"status": "approved"})
-    return iid
+    resp = client.post("/api/deliveries", json=body)
+    return resp.json()["id"]
 
 
 @pytest.fixture
@@ -64,32 +62,32 @@ def _write_session_file(session_dir: Path, session_id: str) -> Path:
 
 
 class TestCollectEndpoint:
-    def test_collect_success(self, client, issue_id, session_dir):
+    def test_collect_success(self, client, delivery_id, session_dir):
         _write_session_file(session_dir, "sess-abc")
         resp = client.post(
-            f"/api/issues/{issue_id}/collect",
+            f"/api/deliveries/{delivery_id}/collect",
             json={"session_id": "sess-abc"},
         )
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "collected"
 
-        issue = client.get(f"/api/issues/{issue_id}").json()
-        assert len(issue["runs"]) == 1
-        assert issue["runs"][0]["session_id"] == "sess-abc"
-        assert issue["runs"][0]["session"]["model"] == "claude-opus-4-6"
+        delivery = client.get(f"/api/deliveries/{delivery_id}").json()
+        assert len(delivery["runs"]) == 1
+        assert delivery["runs"][0]["session_id"] == "sess-abc"
+        assert delivery["runs"][0]["session"]["model"] == "claude-opus-4-6"
 
-    def test_collect_not_found_issue(self, client, session_dir):
+    def test_collect_not_found_delivery(self, client, session_dir):
         _write_session_file(session_dir, "sess-abc")
         resp = client.post(
-            "/api/issues/nonexistent/collect",
+            "/api/deliveries/nonexistent/collect",
             json={"session_id": "sess-abc"},
         )
         assert resp.status_code == 404
 
-    def test_collect_session_file_not_found(self, client, issue_id, session_dir):
+    def test_collect_session_file_not_found(self, client, delivery_id, session_dir):
         resp = client.post(
-            f"/api/issues/{issue_id}/collect",
+            f"/api/deliveries/{delivery_id}/collect",
             json={"session_id": "nonexistent"},
         )
         assert resp.status_code == 404

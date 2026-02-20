@@ -8,7 +8,7 @@ client = TestClient(app)
 
 def test_worker_status_returns_registered_workers():
     registry = WorkerRegistry()
-    registry.register("issue_sync", label="Issue Sync", interval_sec=60, enabled=True)
+    registry.register("delivery_sync", label="Delivery Sync", interval_sec=60, enabled=True)
     registry.register("plan_worker", label="Plan Worker", interval_sec=30, enabled=True)
     app.state.worker_registry = registry
 
@@ -16,7 +16,7 @@ def test_worker_status_returns_registered_workers():
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["workers"]) == 2
-    assert data["workers"][0]["name"] == "issue_sync"
+    assert data["workers"][0]["name"] == "delivery_sync"
     assert data["workers"][1]["name"] == "plan_worker"
 
 

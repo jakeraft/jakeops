@@ -19,15 +19,29 @@ When Agents participate in DevOps workflows:
 - Evidence is scattered across tools
 - Reasoning and decision paths are hard to reconstruct
 
-JakeOps connects the lifecycle into one orchestration unit: an **Issue**.
+JakeOps connects the lifecycle into one orchestration unit: a **Delivery**.
 
 ## What JakeOps Does
 
-- **Issue-based orchestration** — one unit tracks the entire lifecycle
+- **Delivery-based orchestration** — one unit tracks the entire lifecycle
 - **Plan → Approval → Execution** workflow with human gates
-- **Source polling** — ingest issues from GitHub automatically
+- **Source polling** — ingest changes from GitHub automatically
 - **Run history and transcript capture** — full evidence trail
 - **Status-gated transitions** — `approve`, `reject`, `retry`, `cancel`
+
+## How Is This Different?
+
+| | Keptn | Harness | JakeOps |
+|---|---|---|---|
+| **Focus** | SLO-based deployment gates | All-in-one CI/CD platform | Agent↔Human delivery orchestration |
+| **AI Agents** | None | Built-in, closed ecosystem | External, pluggable (Claude Code, Devin, etc.) |
+| **CI/CD relationship** | Extends K8s deployments | Replaces your CI/CD | Sits above your existing CI/CD |
+| **Actor tracking** | System only | System + internal AI | System / Agent / Human (explicit) |
+
+JakeOps is purpose-built for the emerging pattern where AI agents generate plans,
+write code, and trigger pipelines — while humans retain approval authority at
+critical gates. Existing tools either ignore agents entirely (Keptn) or lock you
+into a proprietary agent ecosystem (Harness).
 
 ## Quick Start
 

@@ -3,24 +3,24 @@ import logging
 from datetime import datetime
 
 from app.domain.constants import KST, ID_HEX_LENGTH
-from app.domain.models.issue import Ref, RefRole, RefType, IssueCreate, IssueStatus, Session
+from app.domain.models.delivery import Ref, RefRole, RefType, DeliveryCreate, Phase, RunStatus, Session
 from app.ports.outbound.github_repository import GitHubRepository
 from app.ports.outbound.source_repository import SourceRepository
-from app.ports.inbound.issue_usecases import IssueUseCases
+from app.ports.inbound.delivery_usecases import DeliveryUseCases
 
 logger = logging.getLogger(__name__)
 
 
-class IssueSyncUseCase:
+class DeliverySyncUseCase:
     def __init__(
         self,
         github_repo: GitHubRepository,
         source_repo: SourceRepository,
-        issue_usecases: IssueUseCases,
+        delivery_usecases: DeliveryUseCases,
     ) -> None:
         self._github = github_repo
         self._sources = source_repo
-        self._issues = issue_usecases
+        self._deliveries = delivery_usecases
 
     def sync_once(self) -> int:
         created = 0
@@ -38,16 +38,20 @@ class IssueSyncUseCase:
             source["last_polled_at"] = datetime.now(KST).isoformat()
             self._sources.save_source(source["id"], source)
 
+            default_exit = source.get("default_exit_phase", "deploy")
+
             for gh_issue in gh_issues:
                 label = f"#{gh_issue.number}"
                 raw = f"{owner}/{repo}:{label}"
-                issue_id = hashlib.sha256(raw.encode()).hexdigest()[:ID_HEX_LENGTH]
+                delivery_id = hashlib.sha256(raw.encode()).hexdigest()[:ID_HEX_LENGTH]
 
-                if self._issues.get_issue(issue_id):
+                if self._deliveries.get_delivery(delivery_id):
                     continue
 
-                body = IssueCreate(
-                    status=IssueStatus.new,
+                body = DeliveryCreate(
+                    phase=Phase.intake,
+                    run_status=RunStatus.pending,
+                    exit_phase=Phase(default_exit),
                     summary=f"GitHub Issue #{gh_issue.number}: {gh_issue.title}",
                     repository=f"{owner}/{repo}",
                     refs=[
@@ -59,7 +63,7 @@ class IssueSyncUseCase:
                         )
                     ],
                 )
-                self._issues.create_issue(body)
+                self._deliveries.create_delivery(body)
                 created += 1
-                logger.info("Created issue: %s/%s %s", owner, repo, label)
+                logger.info("Created delivery: %s/%s %s", owner, repo, label)
         return created

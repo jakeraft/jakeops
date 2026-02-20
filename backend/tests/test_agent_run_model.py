@@ -20,7 +20,7 @@ class TestAgentRunStatus:
 class TestAgentRun:
     def test_success(self):
         from app.domain.models.agent_run import AgentRun, AgentRunMode, AgentRunStatus
-        from app.domain.models.issue import ExecutionStats, Session
+        from app.domain.models.delivery import ExecutionStats, Session
 
         run = AgentRun(
             id="abc123",
@@ -45,7 +45,7 @@ class TestAgentRun:
 
     def test_failed_with_error(self):
         from app.domain.models.agent_run import AgentRun, AgentRunMode, AgentRunStatus
-        from app.domain.models.issue import ExecutionStats, Session
+        from app.domain.models.delivery import ExecutionStats, Session
 
         run = AgentRun(
             id="def456",
@@ -62,7 +62,7 @@ class TestAgentRun:
 
     def test_agent_run_with_session_id(self):
         from app.domain.models.agent_run import AgentRun
-        from app.domain.models.issue import ExecutionStats, Session
+        from app.domain.models.delivery import ExecutionStats, Session
 
         run = AgentRun(
             id="run-1",
@@ -77,7 +77,7 @@ class TestAgentRun:
 
     def test_agent_run_session_id_optional(self):
         from app.domain.models.agent_run import AgentRun
-        from app.domain.models.issue import ExecutionStats, Session
+        from app.domain.models.delivery import ExecutionStats, Session
 
         run = AgentRun(
             id="run-1",

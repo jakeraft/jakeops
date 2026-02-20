@@ -10,7 +10,7 @@ def test_kst_offset():
 def test_schema_version():
     from app.domain.constants import SCHEMA_VERSION
 
-    assert SCHEMA_VERSION == 3
+    assert SCHEMA_VERSION == 4
 
 
 def test_id_length():
