@@ -11,7 +11,6 @@ export function useSources() {
     setLoading(true)
     setError(null)
     try {
-      await apiPost("/sources/sync")
       const data = await apiFetch<Source[]>("/sources")
       setSources(data)
     } catch (e) {
@@ -50,6 +49,7 @@ export function useSources() {
   )
 
   const syncNow = useCallback(async () => {
+    await apiPost("/sources/sync")
     await refresh()
   }, [refresh])
 
