@@ -1,8 +1,11 @@
 import { useMemo } from "react"
 import { useNavigate } from "react-router"
 import { Badge } from "@/components/ui/badge"
+import { StableText } from "@/components/stable-text"
 import type { Delivery, Phase } from "@/types"
 import { PHASE_CLASSES } from "@/utils/badge-styles"
+
+const PHASE_CANDIDATES = Object.keys(PHASE_CLASSES)
 import { PHASES } from "@/utils/kanban-rules"
 import { KanbanColumn } from "./column"
 
@@ -21,8 +24,8 @@ function ClosedPlaceholder({ onClick }: { onClick: () => void }) {
       onClick={onClick}
     >
       <div className="flex items-center justify-between p-3 pb-2">
-        <Badge variant="secondary" className={PHASE_CLASSES.close}>
-          close
+        <Badge variant="colorized" className={PHASE_CLASSES.close}>
+          <StableText candidates={PHASE_CANDIDATES}>close</StableText>
         </Badge>
       </div>
       <div className="flex flex-1 items-center justify-center p-4">

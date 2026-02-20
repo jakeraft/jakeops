@@ -17,7 +17,7 @@ export function KanbanCard({ delivery, onClick }: KanbanCardProps) {
     >
       <p className="text-sm font-medium line-clamp-2">{delivery.summary}</p>
       <div className="flex items-center justify-between gap-2">
-        <Badge variant="secondary" className={`text-xs ${STATUS_CLASSES[delivery.run_status]}`}>
+        <Badge variant="colorized" className={`text-xs ${STATUS_CLASSES[delivery.run_status]}`}>
           <StableText candidates={Object.keys(STATUS_CLASSES)}>
             {delivery.run_status}
           </StableText>

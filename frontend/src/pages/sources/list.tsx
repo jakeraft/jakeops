@@ -2,8 +2,19 @@ import { useState } from "react"
 import { Plus } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { StableText } from "@/components/stable-text"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Dialog,
   DialogContent,
@@ -32,7 +43,9 @@ import {
 } from "@/components/ui/table"
 import { useSources } from "@/hooks/use-sources"
 import type { Phase, Source, SourceCreate, SourceUpdate } from "@/types"
-import { PHASE_CLASSES } from "@/utils/badge-styles"
+import { PHASE_CLASSES, STATUS_CLASSES } from "@/utils/badge-styles"
+
+const PHASE_CANDIDATES = Object.keys(PHASE_CLASSES)
 import { formatRelativeTime } from "@/utils/format"
 import { PHASES } from "@/utils/kanban-rules"
 
@@ -146,7 +159,7 @@ function SourceFormDialog({
             {isEdit && (
               <div className="flex items-center gap-3">
                 <Switch checked={active} onCheckedChange={setActive} />
-                <Badge variant="secondary" className={`${active ? "bg-green-100 text-green-700" : ""}`}>
+                <Badge variant="colorized" className={active ? STATUS_CLASSES.succeeded : ""}>
                   <StableText candidates={["synced", "inactive"]}>
                     {active ? "synced" : "inactive"}
                   </StableText>
@@ -236,18 +249,27 @@ export function SourceList() {
   } = useSources()
   const [addOpen, setAddOpen] = useState(false)
   const [editSource, setEditSource] = useState<Source | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Source | null>(null)
 
   async function handleDelete(source: Source) {
-    const confirmed = window.confirm(
-      `Delete source ${source.owner}/${source.repo}? This cannot be undone.`,
-    )
-    if (!confirmed) return
-    await deleteSource(source.id)
+    setDeleteTarget(source)
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    await deleteSource(deleteTarget.id)
+    setDeleteTarget(null)
     setEditSource(null)
   }
 
   if (loading) {
-    return <p className="p-4 text-muted-foreground">Loading...</p>
+    return (
+      <div className="space-y-3 p-4">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
+      </div>
+    )
   }
 
   if (error) {
@@ -286,7 +308,7 @@ export function SourceList() {
                     href={`https://github.com/${s.owner}/${s.repo}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 underline-offset-4 hover:underline"
+                    className="text-primary underline-offset-4 hover:underline"
                     onClick={(e) => e.stopPropagation()}
                   >
                     {s.owner}/{s.repo}
@@ -294,7 +316,7 @@ export function SourceList() {
                 </TableCell>
                 <TableCell>{s.type}</TableCell>
                 <TableCell>
-                  <Badge variant="secondary" className={`${s.active ? "bg-green-100 text-green-700" : ""}`}>
+                  <Badge variant="colorized" className={s.active ? STATUS_CLASSES.succeeded : ""}>
                     <StableText candidates={["synced", "inactive"]}>
                       {s.active ? "synced" : "inactive"}
                     </StableText>
@@ -305,20 +327,20 @@ export function SourceList() {
                     {s.checkpoints.map((cp) => (
                       <Badge
                         key={cp}
-                        variant="secondary"
+                        variant="colorized"
                         className={PHASE_CLASSES[cp as Phase]}
                       >
-                        {cp}
+                        <StableText candidates={PHASE_CANDIDATES}>{cp}</StableText>
                       </Badge>
                     ))}
                   </div>
                 </TableCell>
                 <TableCell>
                   <Badge
-                    variant="secondary"
+                    variant="colorized"
                     className={PHASE_CLASSES[s.endpoint as Phase]}
                   >
-                    {s.endpoint}
+                    <StableText candidates={PHASE_CANDIDATES}>{s.endpoint}</StableText>
                   </Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground">
@@ -333,13 +355,15 @@ export function SourceList() {
       )}
 
       <div className="flex justify-center pt-4">
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => setAddOpen(true)}
-          className="flex cursor-pointer items-center gap-1.5 rounded-md border border-dashed px-5 py-2 text-xs text-muted-foreground hover:border-foreground/30 hover:text-foreground transition-colors"
+          className="border-dashed text-muted-foreground hover:border-foreground/30 hover:text-foreground"
         >
           <Plus className="size-3.5" />
-          <span>Add Source</span>
-        </button>
+          Add Source
+        </Button>
       </div>
 
       <SourceFormDialog
@@ -361,6 +385,23 @@ export function SourceList() {
           onDelete={handleDelete}
         />
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete source?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete source {deleteTarget?.owner}/{deleteTarget?.repo}? This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmDelete}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

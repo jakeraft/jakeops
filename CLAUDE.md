@@ -13,6 +13,7 @@ When a design decision is finalized, write it to `docs/` immediately.
 - Location: `docs/<topic>.md`
 - Include: context, decision, alternatives, implementation order
 
+
 ## Local Setup
 
 - Node.js (LTS)

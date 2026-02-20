@@ -7,7 +7,7 @@ const STATUS_CANDIDATES = Object.keys(STATUS_CLASSES)
 
 export function RunStatusBadge({ status }: { status: RunStatus }) {
   return (
-    <Badge variant="secondary" className={STATUS_CLASSES[status]}>
+    <Badge variant="colorized" className={STATUS_CLASSES[status]}>
       <StableText candidates={STATUS_CANDIDATES}>{status}</StableText>
     </Badge>
   )

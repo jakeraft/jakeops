@@ -8,7 +8,6 @@ export type {
   RefRole,
   RefType,
   SourceType,
-  AgentRunMode,
   AgentRunStatus,
   Ref,
   Session,
@@ -27,7 +26,6 @@ export {
   EXECUTOR_KINDS,
   VERDICTS,
   SOURCE_TYPES,
-  AGENT_RUN_MODES,
   AGENT_RUN_STATUSES,
 } from "./types.generated"
 

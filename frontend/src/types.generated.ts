@@ -24,11 +24,8 @@ export const REF_TYPES = ["jira", "verbal", "pr", "commit", "repo", "github_issu
 export type SourceType = "github"
 export const SOURCE_TYPES = ["github"] as const
 
-export type AgentRunMode = "plan" | "execution"
-export const AGENT_RUN_MODES = ["plan", "execution"] as const
-
-export type AgentRunStatus = "success" | "failed"
-export const AGENT_RUN_STATUSES = ["success", "failed"] as const
+export type AgentRunStatus = "running" | "success" | "failed"
+export const AGENT_RUN_STATUSES = ["running", "success", "failed"] as const
 
 // --- Interfaces ---
 
@@ -68,7 +65,7 @@ export interface PhaseRun {
 
 export interface AgentRun {
   id: string
-  mode: AgentRunMode
+  mode: Phase
   status: AgentRunStatus
   created_at: string
   session: Session
@@ -76,6 +73,11 @@ export interface AgentRun {
   error?: string
   summary?: string
   session_id?: string
+  prompt?: string
+  skills?: string[]
+  used_skills?: string[]
+  plugins?: string[]
+  agents?: string[]
 }
 
 export interface Source {

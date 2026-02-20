@@ -2,11 +2,17 @@ import { useCallback, useEffect, useState } from "react"
 import { apiFetch } from "@/utils/api"
 import type { StreamEvent } from "@/hooks/use-event-stream"
 
+export interface AgentBucket {
+  id: string
+  label: string
+}
+
 export interface StreamLog {
   run_id: string
   started_at: string
   completed_at: string
   events: StreamEvent[]
+  agent_buckets?: AgentBucket[]
 }
 
 export function useStreamLog(deliveryId: string, runId: string | null) {

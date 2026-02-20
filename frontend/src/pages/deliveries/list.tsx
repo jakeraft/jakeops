@@ -2,6 +2,7 @@ import { useMemo, useState } from "react"
 import { useNavigate, useSearchParams } from "react-router"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { RunStatusBadge } from "@/components/run-status-badge"
 import { StableText } from "@/components/stable-text"
 import {
@@ -39,10 +40,10 @@ function getNextAction(phase: Phase, runStatus: RunStatus): ActionKind {
   return null
 }
 
-const ACTION_CONFIG: Record<string, { className: string }> = {
-  "run-agent": { className: "bg-violet-600 hover:bg-violet-700 text-white" },
-  approve: { className: "bg-blue-600 hover:bg-blue-700 text-white" },
-  cancel: { className: "bg-red-600 hover:bg-red-700 text-white" },
+const ACTION_VARIANT: Record<string, "agent" | "approve" | "destructive"> = {
+  "run-agent": "agent",
+  approve: "approve",
+  cancel: "destructive",
 }
 
 function ActionCell({
@@ -55,7 +56,7 @@ function ActionCell({
   const action = getNextAction(delivery.phase, delivery.run_status)
   if (!action) return <span className="text-muted-foreground">—</span>
 
-  const config = ACTION_CONFIG[action]
+  const variant = ACTION_VARIANT[action]
   const label = action === "run-agent"
     ? (AGENT_ACTION_LABELS[delivery.phase] ?? "Run Agent")
     : action === "approve" ? "Approve" : "Cancel"
@@ -64,7 +65,8 @@ function ActionCell({
     <div className="flex gap-1.5">
       <Button
         size="sm"
-        className={`h-7 text-xs ${config.className}`}
+        variant={variant}
+        className="h-7 text-xs"
         onClick={(e) => { e.stopPropagation(); onAction(delivery, action) }}
       >
         <StableText candidates={ACTION_LABEL_CANDIDATES}>{label}</StableText>
@@ -72,8 +74,8 @@ function ActionCell({
       {action === "approve" && (
         <Button
           size="sm"
-          variant="outline"
-          className="h-7 text-xs border-red-300 text-red-700 hover:bg-red-50"
+          variant="reject"
+          className="h-7 text-xs"
           onClick={(e) => { e.stopPropagation(); onAction(delivery, "reject") }}
         >
           Reject
@@ -114,12 +116,16 @@ function DeliveryTable({
           <TableRow
             key={d.id}
             className="cursor-pointer"
-            onClick={() => navigate(`/deliveries/${d.id}`)}
+            onClick={() => navigate(
+              d.run_status === "running"
+                ? `/deliveries/${d.id}?tab=agents-log`
+                : `/deliveries/${d.id}`
+            )}
           >
             <TableCell className="text-muted-foreground">#{d.seq}</TableCell>
             <TableCell>
               <span
-                className="text-sm text-blue-600 underline-offset-4 hover:underline cursor-pointer"
+                className="text-sm text-primary underline-offset-4 hover:underline cursor-pointer"
                 onClick={(e) => { e.stopPropagation(); navigate("/sources") }}
               >
                 {d.repository}
@@ -127,7 +133,7 @@ function DeliveryTable({
             </TableCell>
             <TableCell className="font-medium">{d.summary}</TableCell>
             <TableCell>
-              <Badge variant="secondary" className={PHASE_CLASSES[d.phase]}>
+              <Badge variant="colorized" className={PHASE_CLASSES[d.phase]}>
                 <StableText candidates={PHASE_CANDIDATES}>{d.phase}</StableText>
               </Badge>
             </TableCell>
@@ -203,7 +209,13 @@ export function DeliveryList() {
   }
 
   if (loading) {
-    return <p className="p-4 text-muted-foreground">Loading...</p>
+    return (
+      <div className="space-y-3 p-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full" />
+        ))}
+      </div>
+    )
   }
 
   if (error) {
