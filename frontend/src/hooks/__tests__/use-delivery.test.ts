@@ -91,11 +91,16 @@ describe("useDelivery", () => {
     })
   })
 
-  it("provides retry action", async () => {
+  it("provides runAgent action (implement phase)", async () => {
+    vi.mocked(api.apiFetch).mockResolvedValue({
+      ...MOCK_DELIVERY,
+      phase: "implement",
+      run_status: "pending",
+    })
     const { result } = renderHook(() => useDelivery("abc123"))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    await act(() => result.current.retry())
-    expect(api.apiPost).toHaveBeenCalledWith("/deliveries/abc123/retry")
+    await act(() => result.current.runAgent())
+    expect(api.apiPost).toHaveBeenCalledWith("/deliveries/abc123/run-implement")
   })
 
   it("provides cancel action", async () => {
@@ -105,10 +110,15 @@ describe("useDelivery", () => {
     expect(api.apiPost).toHaveBeenCalledWith("/deliveries/abc123/cancel")
   })
 
-  it("provides generatePlan action", async () => {
+  it("provides runAgent action (plan phase)", async () => {
+    vi.mocked(api.apiFetch).mockResolvedValue({
+      ...MOCK_DELIVERY,
+      phase: "plan",
+      run_status: "pending",
+    })
     const { result } = renderHook(() => useDelivery("abc123"))
     await waitFor(() => expect(result.current.loading).toBe(false))
-    await act(() => result.current.generatePlan())
+    await act(() => result.current.runAgent())
     expect(api.apiPost).toHaveBeenCalledWith(
       "/deliveries/abc123/generate-plan",
     )

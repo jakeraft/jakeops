@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { RunStatusBadge } from "@/components/run-status-badge"
 import { useDelivery } from "@/hooks/use-delivery"
 import type { AgentRun, Phase, PhaseRun, Ref, RunStatus } from "@/types"
 import {
@@ -28,10 +29,9 @@ import {
   MODE_CLASSES,
   PHASE_CLASSES,
   RUN_STATUS_CLASSES,
-  STATUS_CLASSES,
 } from "@/utils/badge-styles"
 import { formatDateTime } from "@/utils/format"
-import { ACTION_PHASES, isTerminal } from "@/utils/kanban-rules"
+import { ACTION_PHASES } from "@/utils/kanban-rules"
 
 // --- Sub-components ---
 
@@ -88,33 +88,59 @@ function RejectDialog({
   )
 }
 
+const AGENT_PHASES = new Set<Phase>(["plan", "implement", "review"])
+
+const AGENT_BUTTON_LABELS: Record<string, string> = {
+  plan: "Generate Plan",
+  implement: "Run Implement",
+  review: "Run Review",
+}
+
 function ActionButtons({
   phase,
   runStatus,
+  disabled,
   onApprove,
   onReject,
-  onRetry,
   onCancel,
-  onGeneratePlan,
+  onRunAgent,
 }: {
   phase: Phase
   runStatus: RunStatus
+  disabled: boolean
   onApprove: () => void
   onReject: (reason: string) => void
-  onRetry: () => void
   onCancel: () => void
-  onGeneratePlan: () => void
+  onRunAgent: () => void
 }) {
   const [rejectOpen, setRejectOpen] = useState(false)
-  const terminal = isTerminal(phase, runStatus)
-  const isActionPhase = ACTION_PHASES.has(phase)
+
+  if (runStatus === "running") {
+    return (
+      <div className="flex gap-2 flex-wrap">
+        <Button variant="destructive" disabled={disabled} onClick={onCancel}>
+          Cancel
+        </Button>
+      </div>
+    )
+  }
+
+  const canApproveReject = ACTION_PHASES.has(phase) && runStatus === "succeeded"
+  const canRunAgent = AGENT_PHASES.has(phase) && (runStatus === "pending" || runStatus === "failed")
 
   return (
     <div className="flex gap-2 flex-wrap">
-      {isActionPhase && runStatus === "succeeded" && (
+      {canRunAgent && (
+        <Button className="bg-violet-600 hover:bg-violet-700" disabled={disabled} onClick={onRunAgent}>
+          {AGENT_BUTTON_LABELS[phase] ?? "Run Agent"}
+        </Button>
+      )}
+      {canApproveReject && (
         <>
-          <Button onClick={onApprove}>Approve</Button>
-          <Button variant="outline" onClick={() => setRejectOpen(true)}>
+          <Button className="bg-blue-600 hover:bg-blue-700" disabled={disabled} onClick={onApprove}>
+            Approve
+          </Button>
+          <Button variant="outline" className="border-red-300 text-red-700 hover:bg-red-50" disabled={disabled} onClick={() => setRejectOpen(true)}>
             Reject
           </Button>
           <RejectDialog
@@ -123,24 +149,6 @@ function ActionButtons({
             onConfirm={onReject}
           />
         </>
-      )}
-
-      {runStatus === "failed" && (
-        <Button variant="outline" onClick={onRetry}>
-          Retry
-        </Button>
-      )}
-
-      {phase === "intake" && (
-        <Button variant="outline" onClick={onGeneratePlan}>
-          Generate Plan
-        </Button>
-      )}
-
-      {!terminal && (
-        <Button variant="destructive" onClick={onCancel}>
-          Cancel
-        </Button>
       )}
     </div>
   )
@@ -261,12 +269,7 @@ function PhaseRunsTable({ phaseRuns }: { phaseRuns: PhaseRun[] }) {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <Badge
-                    variant="secondary"
-                    className={STATUS_CLASSES[pr.run_status]}
-                  >
-                    {pr.run_status}
-                  </Badge>
+                  <RunStatusBadge status={pr.run_status} />
                 </TableCell>
                 <TableCell>
                   <Badge
@@ -377,13 +380,13 @@ export function DeliveryShow() {
     loading,
     error,
     actionError,
+    actionPending,
     clearActionError,
     approve,
     reject,
-    retry,
     cancel,
-    generatePlan,
-  } = useDelivery(id)
+    runAgent,
+  } = useDelivery(id!)
 
   if (!id) {
     return <p className="p-4 text-muted-foreground">Invalid delivery ID.</p>
@@ -410,10 +413,7 @@ export function DeliveryShow() {
           <Badge variant="secondary" className={PHASE_CLASSES[delivery.phase]}>
             {delivery.phase}
           </Badge>
-          <Badge variant="secondary" className={STATUS_CLASSES[delivery.run_status]}>
-            {delivery.run_status}
-          </Badge>
-          <span className="text-muted-foreground">{delivery.repository}</span>
+          <RunStatusBadge status={delivery.run_status} animate />
         </div>
       </div>
 
@@ -436,17 +436,19 @@ export function DeliveryShow() {
       <ActionButtons
         phase={delivery.phase}
         runStatus={delivery.run_status}
+        disabled={actionPending}
         onApprove={approve}
         onReject={reject}
-        onRetry={retry}
         onCancel={cancel}
-        onGeneratePlan={generatePlan}
+        onRunAgent={runAgent}
       />
 
       <Separator />
 
-      {/* Error */}
-      {delivery.error && <ErrorBox message={delivery.error} />}
+      {/* Error — hide while running since it's stale from a previous run */}
+      {delivery.error && delivery.run_status !== "running" && !actionPending && (
+        <ErrorBox message={delivery.error} />
+      )}
 
       {/* Refs */}
       <RefsList refs={delivery.refs} />
