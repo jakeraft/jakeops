@@ -159,18 +159,7 @@ class TestGateReject:
 
 
 class TestPhaseActions:
-    """generate_plan, retry, cancel"""
-
-    def test_generate_plan_from_intake(self, usecases):
-        result = _create_delivery(usecases)
-        triggered = usecases.generate_plan(result["id"])
-        assert triggered is not None
-        assert triggered["phase"] == "intake"
-
-    def test_generate_plan_invalid_phase(self, usecases):
-        result = _create_delivery(usecases, phase="plan", run_status="succeeded")
-        with pytest.raises(ValueError, match="generate_plan"):
-            usecases.generate_plan(result["id"])
+    """retry, cancel (generate_plan tests moved to test_agent_execution.py)"""
 
     def test_cancel(self, usecases):
         result = _create_delivery(usecases, phase="review", run_status="succeeded")

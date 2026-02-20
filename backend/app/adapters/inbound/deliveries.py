@@ -72,9 +72,9 @@ def reject(delivery_id: str, body: RejectBody, uc=Depends(get_usecases)):
 
 
 @router.post("/deliveries/{delivery_id}/generate-plan")
-def generate_plan(delivery_id: str, uc=Depends(get_usecases)):
+async def generate_plan(delivery_id: str, uc=Depends(get_usecases)):
     try:
-        result = uc.generate_plan(delivery_id)
+        result = await uc.generate_plan(delivery_id)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
     if result is None:

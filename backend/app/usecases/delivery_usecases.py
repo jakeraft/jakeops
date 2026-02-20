@@ -1,9 +1,16 @@
 import hashlib
+import shutil
+import tempfile
 import uuid
 from datetime import datetime
 
 from app.domain.constants import KST, SCHEMA_VERSION, ID_HEX_LENGTH
 from app.domain.models.delivery import DeliveryCreate, DeliveryUpdate, Phase, RunStatus, ExecutorKind
+from app.domain.prompts import (
+    build_plan_prompt,
+    PLAN_SYSTEM_PROMPT,
+    PLAN_ALLOWED_TOOLS,
+)
 from app.domain.services.session_parser import (
     find_session_file,
     parse_session_lines,
@@ -165,15 +172,130 @@ class DeliveryUseCasesImpl:
         self._repo.save_delivery(delivery_id, existing)
         return {"id": delivery_id, "phase": prev_phase, "run_status": "pending"}
 
-    def generate_plan(self, delivery_id: str) -> dict | None:
+    def _get_source_token(self, owner: str, repo: str) -> str:
+        if self._source_repo is None:
+            return ""
+        for source in self._source_repo.list_sources():
+            if source.get("owner") == owner and source.get("repo") == repo:
+                return source.get("token", "")
+        return ""
+
+    async def _run_agent_phase(
+        self,
+        delivery: dict,
+        delivery_id: str,
+        prompt: str,
+        mode: str,
+        allowed_tools: list[str] | None = None,
+        system_prompt: str | None = None,
+    ) -> dict:
+        if self._runner is None or self._git is None:
+            raise RuntimeError("SubprocessRunner and GitOperations required for agent execution")
+
+        delivery["run_status"] = "running"
+        delivery["updated_at"] = datetime.now(KST).isoformat()
+        _append_phase_run(delivery, delivery["phase"], "running")
+        self._repo.save_delivery(delivery_id, delivery)
+
+        owner, repo_name = delivery["repository"].split("/", 1)
+        token = self._get_source_token(owner, repo_name)
+        work_dir = tempfile.mkdtemp(prefix="jakeops-work-")
+
+        try:
+            self._git.clone_repo(owner, repo_name, token, work_dir)
+            result_text, events, session_id = await self._runner.run_with_stream(
+                prompt=prompt,
+                cwd=work_dir,
+                allowed_tools=allowed_tools,
+                append_system_prompt=system_prompt,
+            )
+
+            metadata = extract_metadata(events)
+            transcript = extract_transcript(events)
+
+            run_id = uuid.uuid4().hex[:8]
+            run = {
+                "id": run_id,
+                "mode": mode,
+                "status": "success",
+                "created_at": datetime.now(KST).isoformat(),
+                "session": {"model": metadata.model},
+                "stats": {
+                    "cost_usd": metadata.cost_usd,
+                    "input_tokens": metadata.input_tokens,
+                    "output_tokens": metadata.output_tokens,
+                    "duration_ms": metadata.duration_ms,
+                },
+                "session_id": session_id,
+                "summary": result_text[:200] if result_text else None,
+            }
+
+            delivery.setdefault("runs", []).append(run)
+            delivery["run_status"] = "succeeded"
+            delivery["updated_at"] = datetime.now(KST).isoformat()
+            _append_phase_run(delivery, delivery["phase"], "succeeded")
+            self._repo.save_delivery(delivery_id, delivery)
+            self._repo.save_run_transcript(delivery_id, run_id, transcript)
+
+            return {
+                "id": delivery_id,
+                "run_id": run_id,
+                "phase": delivery["phase"],
+                "run_status": "succeeded",
+                "result_text": result_text,
+            }
+        except Exception as e:
+            delivery["run_status"] = "failed"
+            delivery["error"] = str(e)
+            delivery["updated_at"] = datetime.now(KST).isoformat()
+            _append_phase_run(delivery, delivery["phase"], "failed")
+            self._repo.save_delivery(delivery_id, delivery)
+            return {
+                "id": delivery_id,
+                "phase": delivery["phase"],
+                "run_status": "failed",
+                "error": str(e),
+            }
+        finally:
+            shutil.rmtree(work_dir, ignore_errors=True)
+
+    async def generate_plan(self, delivery_id: str) -> dict | None:
         existing = self._repo.get_delivery(delivery_id)
         if existing is None:
             return None
         if existing["phase"] != "intake":
             raise ValueError(
-                f"generate_plan: not allowed from phase '{existing['phase']}'. only 'intake' is allowed"
+                f"generate_plan: not allowed from phase '{existing['phase']}'. "
+                "only 'intake' is allowed"
             )
-        return {"id": delivery_id, "phase": "intake", "run_status": existing["run_status"]}
+
+        existing["phase"] = "plan"
+        prompt = build_plan_prompt(
+            summary=existing["summary"],
+            repository=existing["repository"],
+            refs=existing.get("refs", []),
+        )
+
+        result = await self._run_agent_phase(
+            delivery=existing,
+            delivery_id=delivery_id,
+            prompt=prompt,
+            mode="plan",
+            allowed_tools=PLAN_ALLOWED_TOOLS,
+            system_prompt=PLAN_SYSTEM_PROMPT,
+        )
+
+        if result["run_status"] == "succeeded":
+            delivery = self._repo.get_delivery(delivery_id)
+            delivery["plan"] = {
+                "content": result.get("result_text", ""),
+                "generated_at": datetime.now(KST).isoformat(),
+                "model": "unknown",
+                "cwd": "",
+            }
+            self._repo.save_delivery(delivery_id, delivery)
+
+        return result
 
     def retry(self, delivery_id: str) -> dict | None:
         existing = self._repo.get_delivery(delivery_id)

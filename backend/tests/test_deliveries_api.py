@@ -93,13 +93,6 @@ def test_retry_from_failed():
     assert resp.json()["phase"] == "verify"
 
 
-def test_generate_plan():
-    resp = client.post("/api/deliveries", json=VALID_DELIVERY)
-    delivery_id = resp.json()["id"]
-    resp = client.post(f"/api/deliveries/{delivery_id}/generate-plan")
-    assert resp.status_code == 200
-
-
 def test_get_schema():
     resp = client.get("/api/deliveries/schema")
     assert resp.status_code == 200
