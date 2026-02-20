@@ -1,17 +1,31 @@
-import { Outlet } from "react-router"
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
+import { Outlet, useLocation } from "react-router"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "./app-sidebar"
 
+const PAGE_TITLES: Record<string, string> = {
+  "/sources": "Sources",
+  "/deliveries": "Deliveries",
+  "/board": "Board",
+}
+
+function usePageTitle() {
+  const { pathname } = useLocation()
+  for (const [prefix, title] of Object.entries(PAGE_TITLES)) {
+    if (pathname.startsWith(prefix)) return title
+  }
+  return "JakeOps"
+}
+
 export function AppLayout() {
+  const title = usePageTitle()
   return (
-    <SidebarProvider>
+    <SidebarProvider
+      style={{ "--sidebar-width": "12rem" } as React.CSSProperties}
+    >
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-12 items-center gap-2 border-b px-4">
-          <SidebarTrigger />
-          <Separator orientation="vertical" className="h-4" />
-          <span className="text-sm text-muted-foreground">Control Plane for Agent-Driven DevOps</span>
+        <header className="flex h-10 items-center border-b px-4">
+          <span className="text-sm font-medium">{title}</span>
         </header>
         <main className="flex-1 p-4">
           <Outlet />

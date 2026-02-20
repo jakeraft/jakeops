@@ -1,11 +1,10 @@
-import { Package, GitFork, Columns3 } from "lucide-react"
+import { GitFork, Package, Columns3 } from "lucide-react"
 import { NavLink } from "react-router"
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -13,20 +12,19 @@ import {
 } from "@/components/ui/sidebar"
 
 const NAV_ITEMS = [
-  { to: "/deliveries", label: "Deliveries", icon: Package },
   { to: "/sources", label: "Sources", icon: GitFork },
+  { to: "/deliveries", label: "Deliveries", icon: Package },
   { to: "/board", label: "Board", icon: Columns3 },
 ]
 
 export function AppSidebar() {
   return (
-    <Sidebar>
+    <Sidebar collapsible="none">
       <SidebarHeader>
         <span className="px-2 text-lg font-semibold">JakeOps</span>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {NAV_ITEMS.map((item) => (
