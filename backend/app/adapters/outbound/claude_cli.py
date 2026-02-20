@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncGenerator
+from typing import Any
 
 import structlog
 
@@ -57,6 +59,48 @@ class ClaudeCliAdapter:
             raise RuntimeError(f"claude CLI returned error: {result_text}")
 
         return (result_text, session_id)
+
+    async def run_stream(
+        self,
+        prompt: str,
+        cwd: str,
+        allowed_tools: list[str] | None = None,
+        append_system_prompt: str | None = None,
+        delivery_id: str | None = None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        cmd = ["claude", "-p", prompt, "--output-format", "stream-json"]
+        if allowed_tools:
+            cmd += ["--allowedTools", ",".join(allowed_tools)]
+        if append_system_prompt:
+            cmd += ["--append-system-prompt", append_system_prompt]
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            cwd=cwd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        if delivery_id:
+            self._processes[delivery_id] = proc
+
+        try:
+            assert proc.stdout is not None
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                text = line.decode().strip()
+                if not text:
+                    continue
+                try:
+                    yield json.loads(text)
+                except json.JSONDecodeError:
+                    logger.warning("skipping non-JSON line", line=text)
+            await proc.wait()
+        finally:
+            if delivery_id:
+                self._processes.pop(delivery_id, None)
 
     def kill(self, delivery_id: str) -> bool:
         proc = self._processes.pop(delivery_id, None)

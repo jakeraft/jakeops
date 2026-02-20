@@ -155,3 +155,72 @@ class TestRun:
         result_text, session_id = asyncio.run(adapter.run("prompt", "/tmp"))
         assert session_id is None
         assert result_text == "ok"
+
+
+class TestRunStream:
+    @pytest.fixture
+    def adapter(self):
+        return ClaudeCliAdapter()
+
+    def test_yields_stream_events(self, adapter, monkeypatch):
+        lines = [
+            json.dumps({"type": "system", "subtype": "init", "message": {"model": "opus"}}),
+            json.dumps({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "hi"}]}}),
+            json.dumps({"type": "result", "subtype": "success", "message": {"result": "done", "is_error": False, "cost_usd": 0.01, "input_tokens": 10, "output_tokens": 5, "duration_ms": 100}}),
+        ]
+
+        async def fake_create_subprocess_exec(*args, **kwargs):
+            class FakeStdout:
+                def __init__(self):
+                    self._lines = iter([line.encode() + b"\n" for line in lines])
+                async def readline(self):
+                    try:
+                        return next(self._lines)
+                    except StopIteration:
+                        return b""
+            class FakeProc:
+                returncode = 0
+                stdout = FakeStdout()
+                stderr = None
+                async def wait(self):
+                    pass
+            return FakeProc()
+
+        monkeypatch.setattr("asyncio.create_subprocess_exec", fake_create_subprocess_exec)
+
+        events = []
+        async def run():
+            async for ev in adapter.run_stream("prompt", "/tmp"):
+                events.append(ev)
+
+        asyncio.run(run())
+        assert len(events) == 3
+        assert events[0]["type"] == "system"
+        assert events[2]["type"] == "result"
+
+    def test_uses_stream_json_format(self, adapter, monkeypatch):
+        captured_args = []
+
+        async def fake_create_subprocess_exec(*args, **kwargs):
+            captured_args.extend(args)
+            class FakeStdout:
+                async def readline(self):
+                    return b""
+            class FakeProc:
+                returncode = 0
+                stdout = FakeStdout()
+                stderr = None
+                async def wait(self):
+                    pass
+            return FakeProc()
+
+        monkeypatch.setattr("asyncio.create_subprocess_exec", fake_create_subprocess_exec)
+        asyncio.run(async_exhaust(adapter.run_stream("p", "/tmp")))
+        assert "--output-format" in captured_args
+        idx = captured_args.index("--output-format")
+        assert captured_args[idx + 1] == "stream-json"
+
+
+async def async_exhaust(agen):
+    async for _ in agen:
+        pass
