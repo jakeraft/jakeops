@@ -43,6 +43,33 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+    --color-badge-slate: var(--badge-slate);
+    --color-badge-slate-fg: var(--badge-slate-fg);
+    --color-badge-blue: var(--badge-blue);
+    --color-badge-blue-fg: var(--badge-blue-fg);
+    --color-badge-violet: var(--badge-violet);
+    --color-badge-violet-fg: var(--badge-violet-fg);
+    --color-badge-amber: var(--badge-amber);
+    --color-badge-amber-fg: var(--badge-amber-fg);
+    --color-badge-cyan: var(--badge-cyan);
+    --color-badge-cyan-fg: var(--badge-cyan-fg);
+    --color-badge-green: var(--badge-green);
+    --color-badge-green-fg: var(--badge-green-fg);
+    --color-badge-emerald: var(--badge-emerald);
+    --color-badge-emerald-fg: var(--badge-emerald-fg);
+    --color-badge-gray: var(--badge-gray);
+    --color-badge-gray-fg: var(--badge-gray-fg);
+    --color-badge-red: var(--badge-red);
+    --color-badge-red-fg: var(--badge-red-fg);
+    --color-badge-yellow: var(--badge-yellow);
+    --color-badge-yellow-fg: var(--badge-yellow-fg);
+    --color-btn-agent: var(--btn-agent);
+    --color-btn-agent-hover: var(--btn-agent-hover);
+    --color-btn-approve: var(--btn-approve);
+    --color-btn-approve-hover: var(--btn-approve-hover);
+    --color-btn-reject: var(--btn-reject);
+    --color-btn-reject-border: var(--btn-reject-border);
+    --color-btn-reject-hover: var(--btn-reject-hover);
 }
 
 :root {
@@ -78,6 +105,39 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.708 0 0);
+
+    /*
+     * Badge colors: Tailwind palette shade-100 (bg) / shade-700 (fg)
+     * Button colors: shade-600 (bg) / shade-700 (hover)
+     */
+    --badge-slate:      var(--color-slate-100);
+    --badge-slate-fg:   var(--color-slate-700);
+    --badge-blue:       var(--color-blue-100);
+    --badge-blue-fg:    var(--color-blue-700);
+    --badge-violet:     var(--color-violet-100);
+    --badge-violet-fg:  var(--color-violet-700);
+    --badge-amber:      var(--color-amber-100);
+    --badge-amber-fg:   var(--color-amber-700);
+    --badge-cyan:       var(--color-cyan-100);
+    --badge-cyan-fg:    var(--color-cyan-700);
+    --badge-green:      var(--color-green-100);
+    --badge-green-fg:   var(--color-green-700);
+    --badge-emerald:    var(--color-emerald-100);
+    --badge-emerald-fg: var(--color-emerald-700);
+    --badge-gray:       var(--color-gray-100);
+    --badge-gray-fg:    var(--color-gray-700);
+    --badge-red:        var(--color-red-100);
+    --badge-red-fg:     var(--color-red-700);
+    --badge-yellow:     var(--color-yellow-100);
+    --badge-yellow-fg:  var(--color-yellow-700);
+
+    --btn-agent:        var(--color-violet-600);
+    --btn-agent-hover:  var(--color-violet-700);
+    --btn-approve:      var(--color-blue-600);
+    --btn-approve-hover:var(--color-blue-700);
+    --btn-reject:       var(--color-red-700);
+    --btn-reject-border:var(--color-red-300);
+    --btn-reject-hover: var(--color-red-100);
 }
 
 .dark {
@@ -112,6 +172,39 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(1 0 0 / 10%);
     --sidebar-ring: oklch(0.556 0 0);
+
+    /*
+     * Dark mode: Tailwind palette shade-950 (bg) / shade-300 (fg)
+     * Buttons: shade-700 (bg) / shade-600 (hover)
+     */
+    --badge-slate:      var(--color-slate-950);
+    --badge-slate-fg:   var(--color-slate-300);
+    --badge-blue:       var(--color-blue-950);
+    --badge-blue-fg:    var(--color-blue-300);
+    --badge-violet:     var(--color-violet-950);
+    --badge-violet-fg:  var(--color-violet-300);
+    --badge-amber:      var(--color-amber-950);
+    --badge-amber-fg:   var(--color-amber-300);
+    --badge-cyan:       var(--color-cyan-950);
+    --badge-cyan-fg:    var(--color-cyan-300);
+    --badge-green:      var(--color-green-950);
+    --badge-green-fg:   var(--color-green-300);
+    --badge-emerald:    var(--color-emerald-950);
+    --badge-emerald-fg: var(--color-emerald-300);
+    --badge-gray:       var(--color-gray-950);
+    --badge-gray-fg:    var(--color-gray-300);
+    --badge-red:        var(--color-red-950);
+    --badge-red-fg:     var(--color-red-300);
+    --badge-yellow:     var(--color-yellow-950);
+    --badge-yellow-fg:  var(--color-yellow-300);
+
+    --btn-agent:        var(--color-violet-900);
+    --btn-agent-hover:  var(--color-violet-800);
+    --btn-approve:      var(--color-blue-900);
+    --btn-approve-hover:var(--color-blue-800);
+    --btn-reject:       var(--color-red-300);
+    --btn-reject-border:var(--color-red-900);
+    --btn-reject-hover: var(--color-red-950);
 }
 
 @layer base {

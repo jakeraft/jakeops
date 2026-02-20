@@ -1,6 +1,8 @@
 import { Outlet, useLocation } from "react-router"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "./app-sidebar"
+import { ThemeSwitch } from "./theme-switch"
+import { useTheme } from "@/hooks/use-theme"
 
 const PAGE_TITLES: Record<string, string> = {
   "/sources": "Sources",
@@ -18,14 +20,16 @@ function usePageTitle() {
 
 export function AppLayout() {
   const title = usePageTitle()
+  const { theme, toggle } = useTheme()
   return (
     <SidebarProvider
       style={{ "--sidebar-width": "12rem" } as React.CSSProperties}
     >
       <AppSidebar />
       <SidebarInset>
-        <header className="flex h-12 items-center border-b bg-sidebar px-4">
+        <header className="flex h-12 items-center justify-between border-b bg-sidebar px-4">
           <span className="text-lg font-semibold">{title}</span>
+          <ThemeSwitch checked={theme === "dark"} onCheckedChange={toggle} />
         </header>
         <main className="flex-1 p-4">
           <Outlet />
