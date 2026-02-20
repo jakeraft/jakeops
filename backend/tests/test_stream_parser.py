@@ -5,6 +5,8 @@ import pytest
 
 from app.domain.models.stream import StreamEvent
 from app.domain.services.stream_parser import (
+    StreamMetaTracker,
+    extract_agent_buckets,
     extract_metadata,
     extract_transcript,
     parse_stream_lines,
@@ -51,7 +53,11 @@ class TestExtractMetadata:
         events = [
             StreamEvent(type="system", subtype="init", message={
                 "model": "claude-opus-4-6", "cwd": "/tmp/repo",
-                "tools": ["Read", "Glob", "Grep"], "mcp_servers": [],
+                "tools": ["Read", "Glob", "Grep"],
+                "skills": ["brainstorming", "tdd"],
+                "plugins": [{"name": "superpowers", "path": "/a"}, {"name": "hookify", "path": "/b"}],
+                "agents": ["Bash", "Explore"],
+                "mcp_servers": [],
             }, session_id="sess-1"),
             StreamEvent(type="assistant", message={"role": "assistant"}),
             StreamEvent(type="result", subtype="success", message={
@@ -61,7 +67,44 @@ class TestExtractMetadata:
         meta = extract_metadata(events)
         assert meta.model == "claude-opus-4-6"
         assert meta.cwd == "/tmp/repo"
-        assert meta.skills == ["Read", "Glob", "Grep"]
+        assert meta.tools == ["Read", "Glob", "Grep"]
+        assert meta.skills == ["brainstorming", "tdd"]
+        assert meta.plugins == ["superpowers", "hookify"]
+        assert meta.agents == ["Bash", "Explore"]
+
+    def test_extracts_used_skills_from_tool_use(self):
+        events = [
+            StreamEvent(type="system", subtype="init", message={
+                "model": "claude-opus-4-6",
+                "skills": ["brainstorming", "tdd", "debugging"],
+            }),
+            StreamEvent(type="assistant", message={
+                "role": "assistant",
+                "content": [
+                    {"type": "tool_use", "name": "Skill", "input": {"skill": "brainstorming"}},
+                ],
+            }),
+            StreamEvent(type="assistant", message={
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "some output"},
+                    {"type": "tool_use", "name": "Skill", "input": {"skill": "tdd"}},
+                ],
+            }),
+            # Duplicate invocation — should be deduplicated
+            StreamEvent(type="assistant", message={
+                "role": "assistant",
+                "content": [
+                    {"type": "tool_use", "name": "Skill", "input": {"skill": "brainstorming"}},
+                ],
+            }),
+            StreamEvent(type="result", subtype="success", message={
+                "result": "done", "is_error": False,
+            }),
+        ]
+        meta = extract_metadata(events)
+        assert meta.skills == ["brainstorming", "tdd", "debugging"]
+        assert meta.used_skills == ["brainstorming", "tdd"]
 
     def test_extracts_from_result_event(self):
         events = [
@@ -224,3 +267,158 @@ class TestExtractTranscript:
         result = extract_transcript(events)
         assert result["meta"]["agents"]["leader"]["model"] == "claude-opus-4-6"
         assert result["meta"]["agents"]["subagent_tool-x"]["model"] == "claude-haiku-4-5"
+
+
+class TestExtractAgentBuckets:
+    def test_leader_only(self):
+        events = [
+            StreamEvent(type="system", subtype="init", message={"model": "claude-opus-4-6"}),
+            StreamEvent(type="user", message={"role": "user", "content": "hello"}),
+            StreamEvent(type="assistant", message={
+                "role": "assistant",
+                "content": [{"type": "text", "text": "hi"}],
+            }),
+        ]
+        buckets = extract_agent_buckets(events)
+        assert buckets == [{"id": "leader", "label": "Leader"}]
+
+    def test_subagent_with_task_label(self):
+        events = [
+            StreamEvent(type="assistant", message={
+                "role": "assistant",
+                "content": [
+                    {"type": "tool_use", "id": "toolu_abc", "name": "Task",
+                     "input": {"description": "Find files", "subagent_type": "Explore"}},
+                ],
+            }),
+            StreamEvent(type="assistant", parent_tool_use_id="toolu_abc", message={
+                "role": "assistant",
+                "content": [{"type": "text", "text": "found it"}],
+            }),
+        ]
+        buckets = extract_agent_buckets(events)
+        assert len(buckets) == 2
+        assert buckets[0] == {"id": "leader", "label": "Leader"}
+        assert buckets[1] == {"id": "toolu_abc", "label": "Explore: Find files"}
+
+    def test_mixed_leader_and_subagents(self):
+        events = [
+            StreamEvent(type="user", message={"role": "user", "content": "q"}),
+            StreamEvent(type="assistant", message={
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "thinking"},
+                    {"type": "tool_use", "id": "toolu_1", "name": "Task",
+                     "input": {"description": "Search code", "subagent_type": "Explore"}},
+                ],
+            }),
+            StreamEvent(type="assistant", parent_tool_use_id="toolu_1", message={
+                "role": "assistant",
+                "content": [{"type": "text", "text": "result"}],
+            }),
+            StreamEvent(type="assistant", message={
+                "role": "assistant",
+                "content": [{"type": "text", "text": "done"}],
+            }),
+        ]
+        buckets = extract_agent_buckets(events)
+        assert len(buckets) == 2
+        assert buckets[0]["id"] == "leader"
+        assert buckets[1]["id"] == "toolu_1"
+        assert buckets[1]["label"] == "Explore: Search code"
+
+    def test_filters_system_and_result(self):
+        events = [
+            StreamEvent(type="system", subtype="init", message={"model": "m"}),
+            StreamEvent(type="result", message={"result": "ok"}),
+        ]
+        buckets = extract_agent_buckets(events)
+        assert buckets == []
+
+    def test_empty_events(self):
+        buckets = extract_agent_buckets([])
+        assert buckets == []
+
+
+class TestStreamMetaTracker:
+    def test_emits_on_init(self):
+        tracker = StreamMetaTracker()
+        ev = StreamEvent(type="system", subtype="init", message={"model": "claude-opus-4-6"})
+        meta = tracker.push(ev)
+        assert meta is not None
+        assert meta["model"] == "claude-opus-4-6"
+        assert meta["agent_buckets"] == []
+
+    def test_no_emit_on_duplicate(self):
+        tracker = StreamMetaTracker()
+        ev = StreamEvent(type="system", subtype="init", message={"model": "claude-opus-4-6"})
+        tracker.push(ev)
+        assert tracker.push(ev) is None
+
+    def test_emits_on_new_leader(self):
+        tracker = StreamMetaTracker()
+        ev = StreamEvent(type="user", message={"role": "user", "content": "hi"})
+        meta = tracker.push(ev)
+        assert meta is not None
+        assert meta["agent_buckets"] == [{"id": "leader", "label": "Leader"}]
+
+    def test_emits_on_new_subagent(self):
+        tracker = StreamMetaTracker()
+        tracker.push(StreamEvent(type="user", message={"role": "user"}))
+        ev = StreamEvent(type="assistant", parent_tool_use_id="toolu_abc", message={
+            "role": "assistant", "content": [{"type": "text", "text": "hi"}],
+        })
+        meta = tracker.push(ev)
+        assert meta is not None
+        assert len(meta["agent_buckets"]) == 2
+        assert meta["agent_buckets"][1]["id"] == "toolu_abc"
+
+    def test_emits_on_task_label(self):
+        tracker = StreamMetaTracker()
+        # First: subagent event registers the parent_tool_use_id
+        tracker.push(StreamEvent(
+            type="assistant", parent_tool_use_id="toolu_abc",
+            message={"role": "assistant", "content": [{"type": "text", "text": "r"}]},
+        ))
+        # Then: leader event with Task tool_use block that matches
+        ev = StreamEvent(type="assistant", message={
+            "role": "assistant",
+            "content": [{
+                "type": "tool_use", "id": "toolu_abc", "name": "Task",
+                "input": {"description": "Find files", "subagent_type": "Explore"},
+            }],
+        })
+        meta = tracker.push(ev)
+        assert meta is not None
+        assert meta["agent_buckets"][1]["label"] == "Explore: Find files"
+
+    def test_tracks_used_skills(self):
+        tracker = StreamMetaTracker()
+        tracker.push(StreamEvent(type="user", message={"role": "user"}))
+        ev = StreamEvent(type="assistant", message={
+            "role": "assistant",
+            "content": [
+                {"type": "tool_use", "name": "Skill", "input": {"skill": "tdd"}},
+            ],
+        })
+        meta = tracker.push(ev)
+        assert meta is not None
+        assert meta["used_skills"] == ["tdd"]
+
+    def test_deduplicates_skills(self):
+        tracker = StreamMetaTracker()
+        tracker.push(StreamEvent(type="user", message={"role": "user"}))
+        tracker.push(StreamEvent(type="assistant", message={
+            "role": "assistant",
+            "content": [{"type": "tool_use", "name": "Skill", "input": {"skill": "tdd"}}],
+        }))
+        meta = tracker.push(StreamEvent(type="assistant", message={
+            "role": "assistant",
+            "content": [{"type": "tool_use", "name": "Skill", "input": {"skill": "tdd"}}],
+        }))
+        # No change on duplicate → returns None
+        assert meta is None
+
+    def test_skips_system_and_result(self):
+        tracker = StreamMetaTracker()
+        assert tracker.push(StreamEvent(type="result", message={"result": "ok"})) is None

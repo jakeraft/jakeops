@@ -333,10 +333,11 @@ class MockStreamingRunner:
 
     async def run_stream(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
         self.calls.append({"prompt": prompt, "cwd": cwd})
+        # Matches real Claude CLI stream-json format (top-level keys, no "message" wrapper for init/result)
         events = [
-            {"type": "system", "subtype": "init", "message": {"model": "test-model", "cwd": cwd}},
+            {"type": "system", "subtype": "init", "model": "test-model", "cwd": cwd},
             {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": self.result_text}], "usage": {"input_tokens": 10, "output_tokens": 5}}},
-            {"type": "result", "subtype": "success", "message": {"result": self.result_text, "is_error": False, "cost_usd": 0.01, "input_tokens": 10, "output_tokens": 5, "duration_ms": 100}},
+            {"type": "result", "subtype": "success", "result": self.result_text, "is_error": False, "total_cost_usd": 0.01, "duration_ms": 100, "usage": {"input_tokens": 10, "output_tokens": 5}},
         ]
         for event in events:
             yield event

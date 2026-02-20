@@ -18,7 +18,7 @@ class GitCliAdapter:
 
     def checkout_branch(self, cwd: str, branch: str) -> None:
         self._run_git(["git", "fetch", "origin", branch], "fetch", cwd=cwd)
-        self._run_git(["git", "checkout", branch], "checkout", cwd=cwd)
+        self._run_git(["git", "checkout", "-b", branch, "FETCH_HEAD"], "checkout", cwd=cwd)
 
     def create_branch_with_file(
         self,

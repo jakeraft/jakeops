@@ -15,7 +15,9 @@ _NON_INTERACTIVE = (
 )
 
 PLAN_SYSTEM_PROMPT = (
-    f"Analyze this codebase and produce an implementation plan. {_NON_INTERACTIVE}"
+    "Analyze this codebase and produce an implementation plan. "
+    "Write the plan directly in your response — do NOT create a file for it. "
+    f"{_NON_INTERACTIVE}"
 )
 
 REVIEW_SYSTEM_PROMPT = (

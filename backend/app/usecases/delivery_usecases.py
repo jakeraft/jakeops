@@ -21,7 +21,12 @@ from app.domain.services.session_parser import (
     parse_session_lines,
     synthesize_result_event,
 )
-from app.domain.services.stream_parser import extract_metadata, extract_transcript
+from app.domain.services.stream_parser import (
+    StreamMetaTracker,
+    extract_agent_buckets,
+    extract_metadata,
+    extract_transcript,
+)
 from app.domain.models.stream import StreamEvent, StreamMetadata
 from app.domain.services.event_bus import EventBus
 from app.ports.outbound.delivery_repository import DeliveryRepository
@@ -60,6 +65,29 @@ DEFAULT_EXECUTOR: dict[str, str] = {
     "observe": "system",
     "close": "system",
 }
+
+
+_STREAM_EVENT_KEYS = {"type", "subtype", "parent_tool_use_id", "session_id"}
+
+
+def _raw_to_stream_event(e: dict) -> StreamEvent:
+    """Convert a raw stream-json dict to StreamEvent.
+
+    stream-json events store data at top level (no ``message`` wrapper),
+    while session JSONL and mocks may use a ``message`` key.  When
+    ``message`` is absent, we promote all non-structural keys into message
+    so that ``extract_metadata`` can read model / cost / tokens.
+    """
+    message = e.get("message")
+    if message is None:
+        message = {k: v for k, v in e.items() if k not in _STREAM_EVENT_KEYS}
+    return StreamEvent(
+        type=e.get("type", ""),
+        subtype=e.get("subtype"),
+        parent_tool_use_id=e.get("parent_tool_use_id"),
+        message=message,
+        session_id=e.get("session_id"),
+    )
 
 
 def _append_phase_run(
@@ -147,12 +175,12 @@ class DeliveryUseCasesImpl:
         if data.get("checkpoints") is None:
             data["checkpoints"] = list(DEFAULT_CHECKPOINTS)
 
-        trigger_label = ""
+        request_label = ""
         for ref in data.get("refs", []):
             if ref.get("role") == "request":
-                trigger_label = ref.get("label", "")
+                request_label = ref.get("label", "")
                 break
-        raw = f"{data['repository']}:{trigger_label}"
+        raw = f"{data['repository']}:{request_label}"
         data["id"] = hashlib.sha256(raw.encode()).hexdigest()[:ID_HEX_LENGTH]
         data["seq"] = self._repo.next_seq()
 
@@ -222,7 +250,7 @@ class DeliveryUseCasesImpl:
         existing["updated_at"] = datetime.now(KST).isoformat()
         self._repo.save_delivery(delivery_id, existing)
 
-        auto_trigger = (
+        auto_run = (
             next_phase != "close"
             and DEFAULT_EXECUTOR.get(next_phase) == "agent"
             and next_phase not in checkpoints
@@ -231,7 +259,7 @@ class DeliveryUseCasesImpl:
             "id": delivery_id,
             "phase": existing["phase"],
             "run_status": existing["run_status"],
-            "_auto_trigger": auto_trigger,
+            "_auto_run": auto_run,
         }
 
     def advance_from_intake(self, delivery_id: str) -> dict | None:
@@ -248,12 +276,12 @@ class DeliveryUseCasesImpl:
         existing["updated_at"] = datetime.now(KST).isoformat()
         _append_phase_run(existing, "plan", "pending")
         self._repo.save_delivery(delivery_id, existing)
-        auto_trigger = "plan" not in checkpoints
+        auto_run = "plan" not in checkpoints
         return {
             "id": delivery_id,
             "phase": "plan",
             "run_status": "pending",
-            "_auto_trigger": auto_trigger,
+            "_auto_run": auto_run,
         }
 
     async def _auto_advance_chain(self, delivery_id: str) -> None:
@@ -287,12 +315,12 @@ class DeliveryUseCasesImpl:
         if next_phase == "close":
             return
 
-        # Auto-trigger agent phases that aren't checkpoints
+        # Auto-run agent phases that aren't checkpoints
         executor = DEFAULT_EXECUTOR.get(next_phase)
         if executor == "agent" and next_phase not in checkpoints:
-            await self.auto_trigger_phase(delivery_id)
+            await self.auto_run_phase(delivery_id)
 
-    async def auto_trigger_phase(self, delivery_id: str) -> dict | None:
+    async def auto_run_phase(self, delivery_id: str) -> dict | None:
         existing = self._repo.get_delivery(delivery_id)
         if existing is None:
             return None
@@ -365,6 +393,19 @@ class DeliveryUseCasesImpl:
         collected_events: list[dict] = []
         started_at = datetime.now(KST).isoformat()
 
+        # Create run with "running" status upfront so the UI can show it
+        run = {
+            "id": run_id,
+            "mode": mode,
+            "status": "running",
+            "created_at": started_at,
+            "session": {"model": "unknown"},
+            "stats": {"cost_usd": 0, "input_tokens": 0, "output_tokens": 0, "duration_ms": 0},
+            "prompt": prompt,
+        }
+        delivery.setdefault("runs", []).append(run)
+        self._repo.save_delivery(delivery_id, delivery)
+
         try:
             self._git.clone_repo(owner, repo_name, token, work_dir)
             if branch:
@@ -374,6 +415,7 @@ class DeliveryUseCasesImpl:
             # Note: stream_log is only persisted in the streaming path.
             # Non-streaming runs will not have a stream_log file.
             if self._event_bus:
+                meta_tracker = StreamMetaTracker()
                 async for event in self._runner.run_stream(
                     prompt=prompt,
                     cwd=work_dir,
@@ -383,17 +425,14 @@ class DeliveryUseCasesImpl:
                 ):
                     collected_events.append(event)
                     await self._event_bus.publish(delivery_id, event)
+                    meta_event = meta_tracker.push(_raw_to_stream_event(event))
+                    if meta_event is not None:
+                        await self._event_bus.publish(delivery_id, {
+                            "type": "meta",
+                            "message": meta_event,
+                        })
 
-                stream_events = [
-                    StreamEvent(
-                        type=e.get("type", ""),
-                        subtype=e.get("subtype"),
-                        parent_tool_use_id=e.get("parent_tool_use_id"),
-                        message=e.get("message"),
-                        session_id=e.get("session_id"),
-                    )
-                    for e in collected_events
-                ]
+                stream_events = [_raw_to_stream_event(e) for e in collected_events]
                 metadata = extract_metadata(stream_events)
                 transcript = extract_transcript(stream_events)
             else:
@@ -422,32 +461,33 @@ class DeliveryUseCasesImpl:
                             session_id=session_id, error=str(parse_err),
                         )
 
-            run = {
-                "id": run_id,
-                "mode": mode,
-                "status": "success",
-                "created_at": datetime.now(KST).isoformat(),
-                "session": {"model": metadata.model},
-                "stats": {
-                    "cost_usd": metadata.cost_usd,
-                    "input_tokens": metadata.input_tokens,
-                    "output_tokens": metadata.output_tokens,
-                    "duration_ms": metadata.duration_ms,
-                },
-                "summary": metadata.result_text[:200] if metadata.result_text else None,
+            # Update the running run to success
+            run["status"] = "success"
+            run["session"] = {"model": metadata.model}
+            run["stats"] = {
+                "cost_usd": metadata.cost_usd,
+                "input_tokens": metadata.input_tokens,
+                "output_tokens": metadata.output_tokens,
+                "duration_ms": metadata.duration_ms,
             }
+            run["summary"] = metadata.result_text[:200] if metadata.result_text else None
+            run["skills"] = metadata.skills
+            run["used_skills"] = metadata.used_skills
+            run["plugins"] = metadata.plugins
+            run["agents"] = metadata.agents
 
             # Persist stream log if events were collected
             if collected_events:
+                agent_buckets = extract_agent_buckets(stream_events)
                 stream_log = {
                     "run_id": run_id,
                     "started_at": started_at,
                     "completed_at": datetime.now(KST).isoformat(),
                     "events": collected_events,
+                    "agent_buckets": agent_buckets,
                 }
                 self._repo.save_stream_log(delivery_id, run_id, stream_log)
 
-            delivery.setdefault("runs", []).append(run)
             delivery["run_status"] = "succeeded"
             delivery["updated_at"] = datetime.now(KST).isoformat()
             _append_phase_run(delivery, delivery["phase"], "succeeded")
@@ -466,16 +506,21 @@ class DeliveryUseCasesImpl:
             # Persist partial stream log on error (best-effort)
             if collected_events:
                 try:
+                    partial_stream_events = [_raw_to_stream_event(e) for e in collected_events]
+                    agent_buckets = extract_agent_buckets(partial_stream_events)
                     stream_log = {
                         "run_id": run_id,
                         "started_at": started_at,
                         "completed_at": datetime.now(KST).isoformat(),
                         "events": collected_events,
+                        "agent_buckets": agent_buckets,
                     }
                     self._repo.save_stream_log(delivery_id, run_id, stream_log)
                 except Exception:
                     logger.warning("Failed to persist partial stream log", delivery_id=delivery_id)
 
+            run["status"] = "failed"
+            run["error"] = str(e)
             delivery["run_status"] = "failed"
             delivery["error"] = str(e)
             delivery["updated_at"] = datetime.now(KST).isoformat()
@@ -689,6 +734,10 @@ class DeliveryUseCasesImpl:
             },
             "session_id": session_id,
             "summary": metadata.result_text[:200] if metadata.result_text else None,
+            "skills": metadata.skills,
+            "used_skills": metadata.used_skills,
+            "plugins": metadata.plugins,
+            "agents": metadata.agents,
         }
 
         existing.setdefault("runs", []).append(run)

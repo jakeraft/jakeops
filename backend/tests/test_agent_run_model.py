@@ -1,54 +1,42 @@
-class TestAgentRunMode:
-    def test_values(self):
-        from app.domain.models.agent_run import AgentRunMode
-
-        assert AgentRunMode.plan == "plan"
-        assert AgentRunMode.execution == "execution"
-        assert len(AgentRunMode) == 2
-
-
 class TestAgentRunStatus:
     def test_values(self):
         from app.domain.models.agent_run import AgentRunStatus
 
+        assert AgentRunStatus.running == "running"
         assert AgentRunStatus.success == "success"
         assert AgentRunStatus.failed == "failed"
-        assert len(AgentRunStatus) == 2
+        assert len(AgentRunStatus) == 3
 
 
 class TestAgentRun:
-    def test_success(self):
-        from app.domain.models.agent_run import AgentRun, AgentRunMode, AgentRunStatus
-        from app.domain.models.delivery import ExecutionStats, Session
+    def test_mode_accepts_phase_values(self):
+        """mode field uses Phase enum — accepts any phase string."""
+        from app.domain.models.agent_run import AgentRun, AgentRunStatus
+        from app.domain.models.delivery import ExecutionStats, Phase, Session
 
-        run = AgentRun(
-            id="abc123",
-            mode=AgentRunMode.plan,
-            status=AgentRunStatus.success,
-            created_at="2026-02-20T10:00:00+09:00",
-            session=Session(model="claude-opus-4-6"),
-            stats=ExecutionStats(
-                cost_usd=0.05,
-                input_tokens=1000,
-                output_tokens=500,
-                duration_ms=3000,
-            ),
-            summary="Plan generated successfully",
-        )
-        assert run.id == "abc123"
-        assert run.mode == AgentRunMode.plan
-        assert run.status == AgentRunStatus.success
-        assert run.error is None
-        assert run.summary == "Plan generated successfully"
-        assert run.stats.cost_usd == 0.05
+        for phase in (Phase.plan, Phase.implement, Phase.review):
+            run = AgentRun(
+                id="abc123",
+                mode=phase,
+                status=AgentRunStatus.success,
+                created_at="2026-02-20T10:00:00+09:00",
+                session=Session(model="claude-opus-4-6"),
+                stats=ExecutionStats(
+                    cost_usd=0.05,
+                    input_tokens=1000,
+                    output_tokens=500,
+                    duration_ms=3000,
+                ),
+            )
+            assert run.mode == phase
 
     def test_failed_with_error(self):
-        from app.domain.models.agent_run import AgentRun, AgentRunMode, AgentRunStatus
-        from app.domain.models.delivery import ExecutionStats, Session
+        from app.domain.models.agent_run import AgentRun, AgentRunStatus
+        from app.domain.models.delivery import ExecutionStats, Phase, Session
 
         run = AgentRun(
             id="def456",
-            mode=AgentRunMode.execution,
+            mode=Phase.implement,
             status=AgentRunStatus.failed,
             created_at="2026-02-20T11:00:00+09:00",
             session=Session(model="claude-opus-4-6"),

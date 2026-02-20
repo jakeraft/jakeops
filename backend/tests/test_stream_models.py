@@ -34,8 +34,11 @@ class TestStreamMetadata:
         meta = StreamMetadata()
         assert meta.model == "unknown"
         assert meta.cwd is None
+        assert meta.tools == []
         assert meta.skills == []
+        assert meta.used_skills == []
         assert meta.plugins == []
+        assert meta.agents == []
         assert meta.cost_usd == 0.0
         assert meta.input_tokens == 0
         assert meta.output_tokens == 0
@@ -46,7 +49,8 @@ class TestStreamMetadata:
     def test_full_metadata(self):
         meta = StreamMetadata(
             model="claude-opus-4-6", cwd="/tmp/repo",
-            skills=["Read", "Glob"], plugins=[],
+            tools=["Read", "Glob"], skills=["brainstorming"],
+            plugins=["superpowers"], agents=["Bash"],
             cost_usd=0.05, input_tokens=1000, output_tokens=500,
             duration_ms=30000, is_success=True, result_text="Plan generated",
         )

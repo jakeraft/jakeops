@@ -97,8 +97,8 @@ async def approve(delivery_id: str, background: BackgroundTasks, uc=Depends(get_
         raise HTTPException(status_code=409, detail=str(e))
     if result is None:
         raise HTTPException(status_code=404, detail="Delivery not found")
-    if result.pop("_auto_trigger", False):
-        background.add_task(uc.auto_trigger_phase, delivery_id)
+    if result.pop("_auto_run", False):
+        background.add_task(uc.auto_run_phase, delivery_id)
     return result
 
 
