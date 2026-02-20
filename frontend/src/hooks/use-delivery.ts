@@ -28,6 +28,15 @@ export function useDelivery(id: string | undefined) {
     refresh()
   }, [refresh])
 
+  // Poll for status updates while delivery is running
+  useEffect(() => {
+    if (delivery?.run_status !== "running") return
+    const interval = setInterval(() => {
+      refresh()
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [delivery?.run_status, refresh])
+
   const performAction = useCallback(
     async (action: () => Promise<unknown>) => {
       setActionError(null)
