@@ -15,7 +15,6 @@ export type RunStatus =
   | "succeeded"
   | "failed"
   | "blocked"
-  | "canceled"
 
 export type ExecutorKind = "system" | "agent"
 

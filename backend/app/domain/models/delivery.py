@@ -20,7 +20,6 @@ class RunStatus(str, Enum):
     succeeded = "succeeded"
     failed = "failed"
     blocked = "blocked"
-    canceled = "canceled"
 
 
 class ExecutorKind(str, Enum):

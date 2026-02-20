@@ -31,12 +31,6 @@ describe("isTerminal", () => {
     expect(isTerminal("close", "succeeded")).toBe(true)
   })
 
-  it("returns true when run_status is canceled regardless of phase", () => {
-    expect(isTerminal("intake", "canceled")).toBe(true)
-    expect(isTerminal("plan", "canceled")).toBe(true)
-    expect(isTerminal("close", "canceled")).toBe(true)
-  })
-
   it("returns false for active deliveries", () => {
     expect(isTerminal("intake", "pending")).toBe(false)
     expect(isTerminal("plan", "running")).toBe(false)
