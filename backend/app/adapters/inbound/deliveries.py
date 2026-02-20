@@ -1,4 +1,7 @@
+import json
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.domain.models.delivery import DeliveryCreate, DeliveryUpdate
@@ -17,6 +20,32 @@ class CollectBody(BaseModel):
 
 def get_usecases(request: Request):
     return request.app.state.delivery_usecases
+
+
+def get_event_bus(request: Request):
+    return request.app.state.event_bus
+
+
+@router.get("/deliveries/{delivery_id}/stream")
+async def stream_delivery(delivery_id: str, request: Request):
+    event_bus = get_event_bus(request)
+
+    async def event_generator():
+        async for event in event_bus.subscribe(delivery_id):
+            if await request.is_disconnected():
+                break
+            yield f"data: {json.dumps(event)}\n\n"
+        yield "event: done\ndata: {}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/deliveries")
