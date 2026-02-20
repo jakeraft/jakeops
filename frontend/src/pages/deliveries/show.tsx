@@ -30,6 +30,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { RunStatusBadge } from "@/components/run-status-badge"
+import { StableText } from "@/components/stable-text"
 import { useDelivery } from "@/hooks/use-delivery"
 import { useEventStream } from "@/hooks/use-event-stream"
 import type { StreamEvent } from "@/hooks/use-event-stream"
@@ -414,12 +415,12 @@ function AgentsLogTab({ deliveryId, runs, runStatus }: {
   runs: AgentRun[]
   runStatus: RunStatus
 }) {
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(
-    runs.length > 0 ? runs[runs.length - 1].id : null,
-  )
+  const latestRunId = runs.length > 0 ? runs[runs.length - 1].id : null
+  const [userSelectedRunId, setUserSelectedRunId] = useState<string | null>(latestRunId)
 
-  const isLatestRun = selectedRunId === (runs.length > 0 ? runs[runs.length - 1].id : null)
-  const isLive = runStatus === "running" && isLatestRun
+  // When running, always show the latest run; otherwise respect user selection
+  const selectedRunId = runStatus === "running" ? latestRunId : (userSelectedRunId ?? latestRunId)
+  const isLive = runStatus === "running"
 
   const { log, loading: logLoading } = useStreamLog(
     deliveryId,
@@ -429,7 +430,7 @@ function AgentsLogTab({ deliveryId, runs, runStatus }: {
   return (
     <div className="space-y-4">
       {runs.length > 0 && (
-        <Select value={selectedRunId ?? ""} onValueChange={setSelectedRunId}>
+        <Select value={selectedRunId ?? ""} onValueChange={setUserSelectedRunId}>
           <SelectTrigger className="w-80">
             <SelectValue placeholder="Select a run..." />
           </SelectTrigger>

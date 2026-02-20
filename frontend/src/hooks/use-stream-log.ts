@@ -15,9 +15,13 @@ export function useStreamLog(deliveryId: string, runId: string | null) {
   const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
-    if (!runId) return
+    if (!runId) {
+      setLog(null)
+      return
+    }
     setLoading(true)
     setError(null)
+    setLog(null)
     try {
       const data = await apiFetch<StreamLog>(
         `/deliveries/${deliveryId}/runs/${runId}/stream_log`,

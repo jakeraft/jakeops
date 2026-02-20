@@ -363,13 +363,16 @@ class DeliveryUseCasesImpl:
 
         run_id = uuid.uuid4().hex[:8]
         collected_events: list[dict] = []
+        started_at = datetime.now(KST).isoformat()
 
         try:
             self._git.clone_repo(owner, repo_name, token, work_dir)
             if branch:
                 self._git.checkout_branch(work_dir, branch)
 
-            # Use streaming when event_bus is wired, blocking otherwise
+            # Use streaming when event_bus is wired, blocking otherwise.
+            # Note: stream_log is only persisted in the streaming path.
+            # Non-streaming runs will not have a stream_log file.
             if self._event_bus:
                 async for event in self._runner.run_stream(
                     prompt=prompt,
@@ -438,7 +441,7 @@ class DeliveryUseCasesImpl:
             if collected_events:
                 stream_log = {
                     "run_id": run_id,
-                    "started_at": run["created_at"],
+                    "started_at": started_at,
                     "completed_at": datetime.now(KST).isoformat(),
                     "events": collected_events,
                 }
@@ -460,15 +463,18 @@ class DeliveryUseCasesImpl:
                 "result_text": metadata.result_text,
             }
         except Exception as e:
-            # Persist partial stream log on error
+            # Persist partial stream log on error (best-effort)
             if collected_events:
-                stream_log = {
-                    "run_id": run_id,
-                    "started_at": datetime.now(KST).isoformat(),
-                    "completed_at": datetime.now(KST).isoformat(),
-                    "events": collected_events,
-                }
-                self._repo.save_stream_log(delivery_id, run_id, stream_log)
+                try:
+                    stream_log = {
+                        "run_id": run_id,
+                        "started_at": started_at,
+                        "completed_at": datetime.now(KST).isoformat(),
+                        "events": collected_events,
+                    }
+                    self._repo.save_stream_log(delivery_id, run_id, stream_log)
+                except Exception:
+                    logger.warning("Failed to persist partial stream log", delivery_id=delivery_id)
 
             delivery["run_status"] = "failed"
             delivery["error"] = str(e)
