@@ -5,7 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.domain.models.delivery import DeliveryCreate, DeliveryUpdate
+from app.domain.models.delivery import DeliveryCreate, DeliveryUpdate, RunStatus
 
 router = APIRouter()
 
@@ -117,43 +117,57 @@ def reject(delivery_id: str, body: RejectBody, uc=Depends(get_usecases)):
     return result
 
 
-@router.post("/deliveries/{delivery_id}/generate-plan")
-async def generate_plan(delivery_id: str, uc=Depends(get_usecases)):
-    try:
-        result = await uc.generate_plan(delivery_id)
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    if result is None:
+_AGENT_PHASE_REQUIREMENTS: dict[str, tuple[str, str]] = {
+    "generate-plan": ("plan", "pending"),
+    "run-implement": ("implement", "pending"),
+    "run-review": ("review", "pending"),
+}
+
+def _validate_and_mark_running(delivery_id: str, action: str, uc) -> dict:
+    """Validate delivery state and mark as running before background task starts."""
+    existing = uc.get_delivery(delivery_id)
+    if existing is None:
         raise HTTPException(status_code=404, detail="Delivery not found")
-    return result
+    required_phase, required_status = _AGENT_PHASE_REQUIREMENTS[action]
+    if existing["phase"] != required_phase or existing["run_status"] != required_status:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{action}: requires phase='{required_phase}' and "
+                f"run_status='{required_status}', got phase='{existing['phase']}' "
+                f"run_status='{existing['run_status']}'"
+            ),
+        )
+    # Set running before 202 so polling sees the correct state immediately
+    uc.update_delivery(delivery_id, DeliveryUpdate(run_status=RunStatus.running))
+    return existing
 
 
-@router.post("/deliveries/{delivery_id}/run-implement")
-async def run_implement(delivery_id: str, uc=Depends(get_usecases)):
-    try:
-        result = await uc.run_implement(delivery_id)
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    if result is None:
-        raise HTTPException(status_code=404, detail="Delivery not found")
-    return result
+@router.post("/deliveries/{delivery_id}/generate-plan", status_code=202)
+async def generate_plan(
+    delivery_id: str, background: BackgroundTasks, uc=Depends(get_usecases),
+):
+    existing = _validate_and_mark_running(delivery_id, "generate-plan", uc)
+    background.add_task(uc.generate_plan, delivery_id)
+    return {"id": delivery_id, "phase": existing["phase"], "run_status": "running"}
 
 
-@router.post("/deliveries/{delivery_id}/run-review")
-async def run_review(delivery_id: str, uc=Depends(get_usecases)):
-    try:
-        result = await uc.run_review(delivery_id)
-    except ValueError as e:
-        raise HTTPException(status_code=409, detail=str(e))
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    if result is None:
-        raise HTTPException(status_code=404, detail="Delivery not found")
-    return result
+@router.post("/deliveries/{delivery_id}/run-implement", status_code=202)
+async def run_implement(
+    delivery_id: str, background: BackgroundTasks, uc=Depends(get_usecases),
+):
+    existing = _validate_and_mark_running(delivery_id, "run-implement", uc)
+    background.add_task(uc.run_implement, delivery_id)
+    return {"id": delivery_id, "phase": existing["phase"], "run_status": "running"}
+
+
+@router.post("/deliveries/{delivery_id}/run-review", status_code=202)
+async def run_review(
+    delivery_id: str, background: BackgroundTasks, uc=Depends(get_usecases),
+):
+    existing = _validate_and_mark_running(delivery_id, "run-review", uc)
+    background.add_task(uc.run_review, delivery_id)
+    return {"id": delivery_id, "phase": existing["phase"], "run_status": "running"}
 
 
 
