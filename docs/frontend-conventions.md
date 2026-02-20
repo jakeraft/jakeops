@@ -3,34 +3,26 @@
 ## Stack
 
 - React 19 + TypeScript
-- Ant Design 6
+- shadcn/ui + TailwindCSS
 - React Router 7
 - Vite 7
 - Vitest + Testing Library
 
 ## Principles
 
-- Prefer Ant Design native components over custom UI primitives.
-- Keep styling token-driven (`theme.useToken()`).
-- Avoid custom CSS files unless absolutely necessary.
-- Keep tables responsive (`scroll={{ x: "max-content" }}` when needed).
+- Use shadcn/ui components from components/ui/ — never modify originals.
+- Style with TailwindCSS utility classes only — no custom CSS files.
+- Use proven libraries for complex interactions (dnd-kit, TanStack Table).
+- Keep state management simple: React hooks, no global state library.
 
 ## Layout
 
-- Use `Layout`, `Sider`, `Header`, `Content`.
-- Use built-in responsive behavior:
-  - `breakpoint="md"`
-  - `collapsedWidth={0}`
-  - `Grid.useBreakpoint()` for adaptive interactions
-
-## Theming
-
-Global theming should be centralized in `App.tsx` via `ConfigProvider`.
+- Use shadcn Sidebar component for navigation.
+- Responsive behavior via TailwindCSS breakpoints.
 
 ## Data Views
 
-- Use `Table` for list pages.
-- Use `Descriptions` for detail pages.
+- Use shadcn Table (+ TanStack Table for advanced needs) for list pages.
 - Keep transcript rendering plain text (`pre`) for debugging.
 
 ## Current Frontend Structure
@@ -44,7 +36,10 @@ frontend/src/
 │   ├── sources/
 │   └── worker/
 ├── components/
-└── utils/
+│   └── ui/          # shadcn components (read-only)
+├── hooks/
+├── utils/
+└── types.ts
 ```
 
 ## Quality Checks
