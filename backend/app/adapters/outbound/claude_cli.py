@@ -7,30 +7,6 @@ from app.domain.models.stream import StreamEvent
 
 logger = logging.getLogger(__name__)
 
-PLAN_PROMPT_TEMPLATE = """\
-Analyze the GitHub issue and generate an implementation plan.
-
-## Issue
-- Title: {issue_title}
-- URL: {issue_url}
-- Repository: {owner}/{repo}
-
-## Issue Body
-{issue_body}
-
-## Instructions
-1. Explore the codebase and identify files/structure relevant to the issue.
-2. Write the implementation plan in Markdown.
-3. Include target files, implementation order, and expected impact scope.
-
-Return only the Markdown plan.\
-"""
-
-SYSTEM_PROMPT = (
-    "You are an agent that analyzes this codebase and produces an implementation plan. "
-    "Use read-only tools only."
-)
-
 
 def _extract_session_id(events: list[StreamEvent]) -> str | None:
     """Extract session_id from stream events."""
