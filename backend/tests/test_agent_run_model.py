@@ -4,8 +4,7 @@ class TestAgentRunMode:
 
         assert AgentRunMode.plan == "plan"
         assert AgentRunMode.execution == "execution"
-        assert AgentRunMode.fix == "fix"
-        assert len(AgentRunMode) == 3
+        assert len(AgentRunMode) == 2
 
 
 class TestAgentRunStatus:

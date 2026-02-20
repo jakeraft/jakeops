@@ -38,14 +38,18 @@ class MockSubprocessRunner:
 
 
 class MockGitOperations:
-    """Mock that records clone calls and creates the directory."""
+    """Mock that records clone and checkout calls."""
 
     def __init__(self):
         self.clone_calls: list[dict] = []
+        self.checkout_calls: list[dict] = []
 
     def clone_repo(self, owner: str, repo: str, token: str, dest: str) -> None:
         self.clone_calls.append({"owner": owner, "repo": repo, "token": token, "dest": dest})
         Path(dest).mkdir(parents=True, exist_ok=True)
+
+    def checkout_branch(self, cwd: str, branch: str) -> None:
+        self.checkout_calls.append({"cwd": cwd, "branch": branch})
 
     def create_branch_with_file(self, *args, **kwargs) -> None:
         pass
@@ -220,6 +224,21 @@ class TestGeneratePlan:
         assert ("plan", "succeeded") in phases
 
 
+class TestRejectReasonCleanup:
+    @pytest.mark.asyncio
+    async def test_clears_reject_reason_on_success(self, uc):
+        result = _create_delivery(uc, phase="implement", run_status="pending")
+        delivery_id = result["id"]
+        # Simulate a reject_reason being set
+        delivery = uc.get_delivery(delivery_id)
+        delivery["reject_reason"] = "Missing error handling"
+        uc._repo.save_delivery(delivery_id, delivery)
+
+        await uc.run_implement(delivery_id)
+        delivery = uc.get_delivery(delivery_id)
+        assert "reject_reason" not in delivery
+
+
 class TestRunImplement:
     @pytest.mark.asyncio
     async def test_executes_runner_with_plan_context(self, uc, runner):
@@ -253,6 +272,25 @@ class TestRunImplement:
         result = await uc.run_implement("nonexist")
         assert result is None
 
+    @pytest.mark.asyncio
+    async def test_checks_out_pr_branch(self, uc, git_ops):
+        result = _create_delivery(uc, phase="implement", run_status="pending")
+        delivery_id = result["id"]
+        # Add output:pr ref to simulate draft PR creation
+        uc.update_delivery(delivery_id, DeliveryUpdate(
+            refs=[{"role": "output", "type": "pr", "label": "Draft PR",
+                   "url": "https://github.com/owner/repo/pull/1"}],
+        ))
+        await uc.run_implement(delivery_id)
+        assert len(git_ops.checkout_calls) == 1
+        assert git_ops.checkout_calls[0]["branch"] == f"jakeops/{delivery_id}"
+
+    @pytest.mark.asyncio
+    async def test_no_checkout_without_pr_ref(self, uc, git_ops):
+        result = _create_delivery(uc, phase="implement", run_status="pending")
+        await uc.run_implement(result["id"])
+        assert len(git_ops.checkout_calls) == 0
+
 
 class TestRunReview:
     @pytest.mark.asyncio
@@ -274,25 +312,16 @@ class TestRunReview:
         result = await uc.run_review("nonexist")
         assert result is None
 
-
-class TestRunFix:
     @pytest.mark.asyncio
-    async def test_executes_with_feedback(self, uc, runner):
-        result = _create_delivery(uc, phase="implement", run_status="pending")
-        fix_result = await uc.run_fix(result["id"], feedback="Missing error handling")
-
-        assert fix_result["run_status"] == "succeeded"
-        assert "Missing error handling" in runner.calls[0]["prompt"]
-        # fix gets all tools (no restrictions)
-        assert runner.calls[0]["allowed_tools"] is None
-
-    @pytest.mark.asyncio
-    async def test_invalid_phase(self, uc):
+    async def test_checks_out_pr_branch(self, uc, git_ops):
         result = _create_delivery(uc, phase="review", run_status="pending")
-        with pytest.raises(ValueError, match="run_fix"):
-            await uc.run_fix(result["id"])
+        delivery_id = result["id"]
+        uc.update_delivery(delivery_id, DeliveryUpdate(
+            refs=[{"role": "output", "type": "pr", "label": "Draft PR",
+                   "url": "https://github.com/owner/repo/pull/1"}],
+        ))
+        await uc.run_review(delivery_id)
+        assert len(git_ops.checkout_calls) == 1
+        assert git_ops.checkout_calls[0]["branch"] == f"jakeops/{delivery_id}"
 
-    @pytest.mark.asyncio
-    async def test_not_found(self, uc):
-        result = await uc.run_fix("nonexist")
-        assert result is None
+

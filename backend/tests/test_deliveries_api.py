@@ -115,12 +115,6 @@ def test_run_review_wrong_phase():
     assert resp.status_code == 409
 
 
-def test_run_fix_wrong_phase():
-    resp = client.post("/api/deliveries", json=VALID_DELIVERY)
-    delivery_id = resp.json()["id"]
-    resp = client.post(f"/api/deliveries/{delivery_id}/run-fix", json={"feedback": "fix this"})
-    assert resp.status_code == 409
-
 
 def test_run_implement_not_found():
     resp = client.post("/api/deliveries/nonexist/run-implement")
@@ -131,10 +125,6 @@ def test_run_review_not_found():
     resp = client.post("/api/deliveries/nonexist/run-review")
     assert resp.status_code == 404
 
-
-def test_run_fix_not_found():
-    resp = client.post("/api/deliveries/nonexist/run-fix", json={"feedback": ""})
-    assert resp.status_code == 404
 
 
 def test_get_schema():

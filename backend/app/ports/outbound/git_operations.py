@@ -18,6 +18,10 @@ class GitOperations(Protocol):
         """Shallow-clone repository to destination path."""
         ...
 
+    def checkout_branch(self, cwd: str, branch: str) -> None:
+        """Fetch and checkout a remote branch. Raise on failure."""
+        ...
+
     def create_draft_pr(
         self,
         owner: str,

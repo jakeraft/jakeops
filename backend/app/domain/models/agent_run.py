@@ -8,7 +8,6 @@ from app.domain.models.delivery import ExecutionStats, Session
 class AgentRunMode(str, Enum):
     plan = "plan"
     execution = "execution"
-    fix = "fix"
 
 
 class AgentRunStatus(str, Enum):

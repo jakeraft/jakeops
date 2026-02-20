@@ -14,11 +14,9 @@ from app.domain.prompts import (
     build_plan_prompt,
     build_implement_prompt,
     build_review_prompt,
-    build_fix_prompt,
     PLAN_SYSTEM_PROMPT,
     IMPLEMENT_SYSTEM_PROMPT,
     REVIEW_SYSTEM_PROMPT,
-    FIX_SYSTEM_PROMPT,
 )
 from app.domain.services.session_parser import (
     find_session_file,
@@ -330,6 +328,15 @@ class DeliveryUseCasesImpl:
                 return source.get("token", "")
         return ""
 
+    @staticmethod
+    def _get_pr_branch(delivery: dict) -> str | None:
+        """Extract branch name from output:pr ref if present."""
+        for ref in delivery.get("refs", []):
+            if ref.get("role") == "output" and ref.get("type") == "pr":
+                # PR URL contains the delivery_id; branch is jakeops/{delivery_id}
+                return f"jakeops/{delivery['id']}"
+        return None
+
     async def _run_agent_phase(
         self,
         delivery: dict,
@@ -338,6 +345,7 @@ class DeliveryUseCasesImpl:
         mode: str,
         allowed_tools: list[str] | None = None,
         system_prompt: str | None = None,
+        branch: str | None = None,
     ) -> dict:
         if self._runner is None or self._git is None:
             raise RuntimeError("SubprocessRunner and GitOperations required for agent execution")
@@ -355,6 +363,8 @@ class DeliveryUseCasesImpl:
 
         try:
             self._git.clone_repo(owner, repo_name, token, work_dir)
+            if branch:
+                self._git.checkout_branch(work_dir, branch)
             result_text, session_id = await self._runner.run(
                 prompt=prompt,
                 cwd=work_dir,
@@ -401,6 +411,7 @@ class DeliveryUseCasesImpl:
 
             delivery.setdefault("runs", []).append(run)
             delivery["run_status"] = "succeeded"
+            delivery.pop("reject_reason", None)
             delivery["updated_at"] = datetime.now(KST).isoformat()
             _append_phase_run(delivery, delivery["phase"], "succeeded")
             self._repo.save_delivery(delivery_id, delivery)
@@ -451,12 +462,49 @@ class DeliveryUseCasesImpl:
 
         if result["run_status"] == "succeeded":
             delivery = self._repo.get_delivery(delivery_id)
+            plan_content = result.get("result_text", "")
             delivery["plan"] = {
-                "content": result.get("result_text", ""),
+                "content": plan_content,
                 "generated_at": datetime.now(KST).isoformat(),
                 "model": "unknown",
                 "cwd": "",
             }
+
+            # Create branch + draft PR (non-fatal)
+            try:
+                owner, repo_name = delivery["repository"].split("/", 1)
+                token = self._get_source_token(owner, repo_name)
+                branch = f"jakeops/{delivery_id}"
+                repo_url = f"https://github.com/{owner}/{repo_name}.git"
+                self._git.create_branch_with_file(
+                    repo_url=repo_url,
+                    branch=branch,
+                    file_path="docs/plan.md",
+                    content=plan_content,
+                    commit_message=f"plan: {delivery['summary'][:50]}",
+                    token=token,
+                )
+                pr_url = self._git.create_draft_pr(
+                    owner=owner,
+                    repo=repo_name,
+                    branch=branch,
+                    title=f"[jakeops] {delivery['summary'][:60]}",
+                    body=plan_content[:500],
+                    token=token,
+                )
+                delivery.setdefault("refs", []).append({
+                    "role": "output",
+                    "type": "pr",
+                    "label": "Draft PR",
+                    "url": pr_url,
+                })
+                logger.info("draft PR created", delivery_id=delivery_id, pr_url=pr_url)
+            except Exception as e:
+                logger.warning(
+                    "draft PR creation failed (non-fatal)",
+                    delivery_id=delivery_id, error=str(e),
+                )
+
             self._repo.save_delivery(delivery_id, delivery)
             await self._auto_advance_chain(delivery_id)
 
@@ -473,6 +521,7 @@ class DeliveryUseCasesImpl:
             )
 
         prompt = build_implement_prompt(existing)
+        branch = self._get_pr_branch(existing)
 
         result = await self._run_agent_phase(
             delivery=existing,
@@ -480,6 +529,7 @@ class DeliveryUseCasesImpl:
             prompt=prompt,
             mode="implement",
             system_prompt=IMPLEMENT_SYSTEM_PROMPT,
+            branch=branch,
         )
 
         if result["run_status"] == "succeeded":
@@ -498,6 +548,7 @@ class DeliveryUseCasesImpl:
             )
 
         prompt = build_review_prompt(existing)
+        branch = self._get_pr_branch(existing)
 
         result = await self._run_agent_phase(
             delivery=existing,
@@ -505,31 +556,7 @@ class DeliveryUseCasesImpl:
             prompt=prompt,
             mode="review",
             system_prompt=REVIEW_SYSTEM_PROMPT,
-        )
-
-        if result["run_status"] == "succeeded":
-            await self._auto_advance_chain(delivery_id)
-
-        return result
-
-    async def run_fix(self, delivery_id: str, feedback: str = "") -> dict | None:
-        existing = self._repo.get_delivery(delivery_id)
-        if existing is None:
-            return None
-        if existing["phase"] != "implement" or existing["run_status"] != "pending":
-            raise ValueError(
-                f"run_fix: requires phase='implement' and run_status='pending', "
-                f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
-            )
-
-        prompt = build_fix_prompt(existing, feedback=feedback)
-
-        result = await self._run_agent_phase(
-            delivery=existing,
-            delivery_id=delivery_id,
-            prompt=prompt,
-            mode="fix",
-            system_prompt=FIX_SYSTEM_PROMPT,
+            branch=branch,
         )
 
         if result["run_status"] == "succeeded":

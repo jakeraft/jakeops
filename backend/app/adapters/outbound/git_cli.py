@@ -16,6 +16,10 @@ class GitCliAdapter:
             clone_url = f"https://github.com/{owner}/{repo}.git"
         self._run_git(["git", "clone", "--depth=1", clone_url, dest], "clone", token=token)
 
+    def checkout_branch(self, cwd: str, branch: str) -> None:
+        self._run_git(["git", "fetch", "origin", branch], "fetch", cwd=cwd)
+        self._run_git(["git", "checkout", branch], "checkout", cwd=cwd)
+
     def create_branch_with_file(
         self,
         repo_url: str,
