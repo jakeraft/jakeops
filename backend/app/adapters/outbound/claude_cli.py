@@ -68,7 +68,7 @@ class ClaudeCliAdapter:
         append_system_prompt: str | None = None,
         delivery_id: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
-        cmd = ["claude", "-p", prompt, "--output-format", "stream-json"]
+        cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose"]
         if allowed_tools:
             cmd += ["--allowedTools", ",".join(allowed_tools)]
         if append_system_prompt:
