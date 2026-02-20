@@ -26,12 +26,12 @@ export function AppLayout() {
       style={{ "--sidebar-width": "12rem" } as React.CSSProperties}
     >
       <AppSidebar />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <header className="flex h-12 items-center justify-between border-b bg-sidebar px-4">
           <span className="text-lg font-semibold">{title}</span>
           <ThemeSwitch checked={theme === "dark"} onCheckedChange={toggle} />
         </header>
-        <main className="flex-1 p-4">
+        <main className="min-w-0 flex-1 overflow-hidden p-4">
           <Outlet />
         </main>
       </SidebarInset>
