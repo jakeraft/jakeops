@@ -68,7 +68,7 @@ class ClaudeCliAdapter:
         append_system_prompt: str | None = None,
         delivery_id: str | None = None,
     ) -> AsyncGenerator[dict[str, Any], None]:
-        cmd = ["claude", "-p", prompt, "--output-format", "stream-json", "--verbose"]
+        cmd = ["claude", "-p", prompt, "--output-format", "stream-json"]
         if allowed_tools:
             cmd += ["--allowedTools", ",".join(allowed_tools)]
         if append_system_prompt:
@@ -86,6 +86,8 @@ class ClaudeCliAdapter:
 
         try:
             assert proc.stdout is not None
+            event_count = 0
+            event_types: list[str] = []
             while True:
                 try:
                     line = await asyncio.wait_for(proc.stdout.readline(), timeout=600)
@@ -99,12 +101,28 @@ class ClaudeCliAdapter:
                 if not text:
                     continue
                 try:
-                    yield json.loads(text)
+                    parsed = json.loads(text)
+                    event_count += 1
+                    event_types.append(parsed.get("type", "?"))
+                    yield parsed
                 except json.JSONDecodeError:
-                    logger.warning("skipping non-JSON line", line=text)
+                    logger.warning("skipping non-JSON line", line=text[:200])
             await proc.wait()
+            logger.info(
+                "claude CLI stream finished",
+                delivery_id=delivery_id,
+                exit_code=proc.returncode,
+                event_count=event_count,
+                event_types_tail=event_types[-10:],
+                has_result="result" in event_types,
+            )
             if proc.returncode != 0:
                 stderr_data = await proc.stderr.read() if proc.stderr else b""
+                logger.warning(
+                    "claude CLI non-zero exit",
+                    exit_code=proc.returncode,
+                    stderr=stderr_data.decode().strip()[:500],
+                )
                 raise RuntimeError(
                     f"claude CLI failed (exit {proc.returncode}): "
                     f"{stderr_data.decode().strip()}"
