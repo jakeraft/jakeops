@@ -122,11 +122,13 @@ class TestApprove:
         delivery = usecases.get_delivery(result["id"])
         assert delivery["phase"] == "implement"
 
-    def test_approve_review_to_verify(self, usecases):
+    def test_approve_review_skips_system_phases_to_close(self, usecases):
         result = _create_delivery(usecases, phase="review", run_status="succeeded")
         approved = usecases.approve(result["id"])
-        assert approved["phase"] == "verify"
-        assert approved["run_status"] == "pending"
+        # verify/deploy/observe are system phases (not checkpoints by default),
+        # so approve auto-succeeds them and reaches close
+        assert approved["phase"] == "close"
+        assert approved["run_status"] == "succeeded"
 
     def test_approve_implement_to_review(self, usecases):
         result = _create_delivery(usecases, phase="implement", run_status="succeeded")
@@ -164,10 +166,10 @@ class TestApprove:
 class TestReject:
     """reject: action phase sends delivery back to previous phase"""
 
-    def test_reject_plan_to_intake(self, usecases):
+    def test_reject_plan_stays_at_plan(self, usecases):
         result = _create_delivery(usecases, phase="plan", run_status="succeeded")
         rejected = usecases.reject(result["id"], reason="Inadequate plan")
-        assert rejected["phase"] == "intake"
+        assert rejected["phase"] == "plan"
         assert rejected["run_status"] == "pending"
 
     def test_reject_implement_to_plan(self, usecases):
@@ -197,23 +199,24 @@ class TestReject:
         result = _create_delivery(usecases, phase="plan", run_status="succeeded")
         usecases.reject(result["id"], reason="bad")
         delivery = usecases.get_delivery(result["id"])
-        assert delivery["phase_runs"][-1]["phase"] == "intake"
+        assert delivery["phase_runs"][-1]["phase"] == "plan"
 
 
 class TestPhaseActions:
     """retry, cancel (generate_plan tests moved to test_agent_execution.py)"""
 
-    def test_cancel(self, usecases):
-        result = _create_delivery(usecases, phase="review", run_status="succeeded")
-        canceled = usecases.cancel(result["id"])
-        assert canceled["run_status"] == "canceled"
-        assert canceled["phase"] == "review"
-
-    def test_cancel_preserves_phase(self, usecases):
+    def test_cancel_running(self, usecases):
         result = _create_delivery(usecases, phase="implement", run_status="running")
         canceled = usecases.cancel(result["id"])
+        assert canceled["run_status"] == "failed"
         assert canceled["phase"] == "implement"
-        assert canceled["run_status"] == "canceled"
+        delivery = usecases.get_delivery(result["id"])
+        assert delivery["error"] == "Canceled by user"
+
+    def test_cancel_not_running(self, usecases):
+        result = _create_delivery(usecases, phase="review", run_status="succeeded")
+        with pytest.raises(ValueError, match="cancel"):
+            usecases.cancel(result["id"])
 
     def test_retry_from_failed(self, usecases):
         result = _create_delivery(usecases, phase="verify", run_status="failed")

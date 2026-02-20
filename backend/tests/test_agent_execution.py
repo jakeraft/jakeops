@@ -77,7 +77,7 @@ def uc(repos, runner, git_ops):
     return DeliveryUseCasesImpl(delivery_repo, runner, git_ops, source_repo)
 
 
-def _create_delivery(uc, phase="intake", run_status="pending"):
+def _create_delivery(uc, phase="plan", run_status="pending"):
     body = DeliveryCreate(
         phase=phase,
         run_status=run_status,
@@ -120,7 +120,7 @@ class TestGeneratePlan:
 
     @pytest.mark.asyncio
     async def test_invalid_phase(self, uc):
-        result = _create_delivery(uc, phase="plan", run_status="succeeded")
+        result = _create_delivery(uc, phase="implement", run_status="pending")
         with pytest.raises(ValueError, match="generate_plan"):
             await uc.generate_plan(result["id"])
 
@@ -151,9 +151,9 @@ class TestGeneratePlan:
         assert "timeout" in plan_result["error"]
         delivery = uc.get_delivery(result["id"])
         assert delivery["run_status"] == "failed"
-        # Phase should be rolled back to intake so generate_plan can be retried
-        assert delivery["phase"] == "intake"
-        assert plan_result["phase"] == "intake"
+        # Phase stays at plan (no rollback to intake)
+        assert delivery["phase"] == "plan"
+        assert plan_result["phase"] == "plan"
 
     @pytest.mark.asyncio
     async def test_failure_does_not_mutate_caller_dict(self, repos, git_ops):
@@ -214,7 +214,7 @@ class TestGeneratePlan:
         result = _create_delivery(uc)
         await uc.generate_plan(result["id"])
         delivery = uc.get_delivery(result["id"])
-        # Should have: initial intake pending, plan running, plan succeeded
+        # Should have: initial plan pending, plan running, plan succeeded
         phases = [(r["phase"], r["run_status"]) for r in delivery["phase_runs"]]
         assert ("plan", "running") in phases
         assert ("plan", "succeeded") in phases

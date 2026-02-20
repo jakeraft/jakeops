@@ -22,13 +22,13 @@ class TestRunStatusEnum:
     def test_all_values(self):
         from app.domain.models.delivery import RunStatus
 
-        expected = ["pending", "running", "succeeded", "failed", "blocked", "canceled"]
+        expected = ["pending", "running", "succeeded", "failed", "blocked"]
         assert [s.value for s in RunStatus] == expected
 
     def test_count(self):
         from app.domain.models.delivery import RunStatus
 
-        assert len(RunStatus) == 6
+        assert len(RunStatus) == 5
 
 
 class TestExecutorKindEnum:

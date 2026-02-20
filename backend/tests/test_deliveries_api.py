@@ -71,16 +71,24 @@ def test_reject_gate_phase():
     delivery_id = resp.json()["id"]
     resp = client.post(f"/api/deliveries/{delivery_id}/reject", json={"reason": "needs replanning"})
     assert resp.status_code == 200
-    assert resp.json()["phase"] == "intake"
+    assert resp.json()["phase"] == "plan"
     assert resp.json()["run_status"] == "pending"
 
 
-def test_cancel():
-    resp = client.post("/api/deliveries", json=VALID_DELIVERY)
+def test_cancel_running():
+    delivery_data = {**VALID_DELIVERY, "run_status": "running"}
+    resp = client.post("/api/deliveries", json=delivery_data)
     delivery_id = resp.json()["id"]
     resp = client.post(f"/api/deliveries/{delivery_id}/cancel")
     assert resp.status_code == 200
-    assert resp.json()["run_status"] == "canceled"
+    assert resp.json()["run_status"] == "failed"
+
+
+def test_cancel_not_running():
+    resp = client.post("/api/deliveries", json=VALID_DELIVERY)
+    delivery_id = resp.json()["id"]
+    resp = client.post(f"/api/deliveries/{delivery_id}/cancel")
+    assert resp.status_code == 409
 
 
 def test_retry_from_failed():

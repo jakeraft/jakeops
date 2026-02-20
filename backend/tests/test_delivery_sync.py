@@ -47,11 +47,19 @@ class FakeDeliveryUseCases:
         self._deliveries[delivery_id] = {
             "id": delivery_id,
             "phase": "intake",
-            "run_status": "pending",
+            "run_status": body.run_status.value,
             "repository": body.repository,
             "refs": [r.model_dump() for r in body.refs],
         }
         return {"id": delivery_id, "status": "created"}
+
+    def advance_from_intake(self, delivery_id: str) -> dict | None:
+        d = self._deliveries.get(delivery_id)
+        if d is None:
+            return None
+        d["phase"] = "plan"
+        d["run_status"] = "pending"
+        return {"id": delivery_id, "phase": "plan", "run_status": "pending"}
 
     def close_delivery(self, delivery_id: str) -> dict | None:
         if delivery_id not in self._deliveries:
@@ -74,10 +82,14 @@ def test_sync_creates_delivery_for_new_github_issue():
     assert len(delivery_uc.created) == 1
     body = delivery_uc.created[0]
     assert body.phase.value == "intake"
-    assert body.run_status.value == "pending"
+    assert body.run_status.value == "succeeded"
     assert body.refs[0].type.value == "github_issue"
     assert body.refs[0].label == "#1"
     assert body.repository == "o/r"
+    # After create, advance_from_intake is called
+    delivery_id = list(delivery_uc._deliveries.keys())[0]
+    assert delivery_uc._deliveries[delivery_id]["phase"] == "plan"
+    assert delivery_uc._deliveries[delivery_id]["run_status"] == "pending"
 
 
 def test_sync_skips_existing_delivery():
@@ -237,8 +249,8 @@ def test_sync_does_not_close_already_closed_delivery():
     assert len(delivery_uc.closed) == 1
 
 
-def test_sync_closes_canceled_delivery_when_issue_closed():
-    """Canceled deliveries are still closed when the GitHub issue is closed."""
+def test_sync_closes_failed_delivery_when_issue_closed():
+    """Failed deliveries are still closed when the GitHub issue is closed."""
     issue1 = GitHubIssue(number=1, title="Bug", html_url="https://github.com/o/r/issues/1", state="open")
     github_repo = FakeGitHubRepo([issue1])
     source_repo = FakeSourceRepo([{"id": "s1", "owner": "o", "repo": "r"}])
@@ -247,9 +259,9 @@ def test_sync_closes_canceled_delivery_when_issue_closed():
     uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
     uc.sync_once()
 
-    # Mark as canceled manually
+    # Mark as failed (e.g. canceled by user)
     delivery_id = list(delivery_uc._deliveries.keys())[0]
-    delivery_uc._deliveries[delivery_id]["run_status"] = "canceled"
+    delivery_uc._deliveries[delivery_id]["run_status"] = "failed"
 
     # Issue is now closed
     github_repo._issues = []
