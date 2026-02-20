@@ -6,14 +6,24 @@ use case / domain layer. The executor (SubprocessRunner) is phase-agnostic.
 
 PLAN_SYSTEM_PROMPT = (
     "You are an agent that analyzes this codebase and produces an implementation plan. "
-    "Use read-only tools only."
+    "Use read-only tools only. "
+    "You MUST end your response with a JSON block in this exact format:\n"
+    "```json\n"
+    '{"content": "full plan in Markdown", "target_files": ["path/to/file1.py", "path/to/file2.py"]}\n'
+    "```"
 )
 
 PLAN_ALLOWED_TOOLS = ["Read", "Glob", "Grep", "LS"]
 
 REVIEW_SYSTEM_PROMPT = (
     "You are a code review agent. Review changes for quality and correctness. "
-    "Use read-only tools only."
+    "Use read-only tools only. "
+    "You MUST end your response with a JSON block in this exact format:\n"
+    "```json\n"
+    '{"verdict": "pass", "summary": "one-line summary", "feedback": ""}\n'
+    "```\n"
+    'verdict must be exactly "pass" or "not_pass". '
+    "When verdict is not_pass, feedback must contain actionable feedback for the author."
 )
 
 REVIEW_ALLOWED_TOOLS = ["Read", "Glob", "Grep", "LS"]
@@ -47,8 +57,11 @@ def build_plan_prompt(summary: str, repository: str, refs: list[dict]) -> str:
         f"1. If a URL is provided, read the issue for full context.\n"
         f"2. Explore the codebase and identify relevant files.\n"
         f"3. Write the implementation plan in Markdown.\n"
-        f"4. Include target files, implementation order, and expected impact.\n\n"
-        f"Return only the Markdown plan."
+        f"4. Include target files, implementation order, and expected impact.\n"
+        f"5. End with a JSON block:\n"
+        f"```json\n"
+        f'{{"content": "full plan in Markdown", "target_files": ["path/to/file1.py", "path/to/file2.py"]}}\n'
+        f"```"
     )
 
 
@@ -71,7 +84,12 @@ def build_review_prompt(summary: str) -> str:
         f"## Instructions\n"
         f"1. Check the latest commits and changes.\n"
         f"2. Review for code quality, bugs, security issues.\n"
-        f"3. Provide your review as a structured report."
+        f"3. End with a JSON block:\n"
+        f"```json\n"
+        f'{{"verdict": "pass", "summary": "one-line summary", "feedback": ""}}\n'
+        f"```\n"
+        f'verdict must be exactly "pass" or "not_pass". '
+        f"When verdict is not_pass, feedback must contain actionable feedback."
     )
 
 
