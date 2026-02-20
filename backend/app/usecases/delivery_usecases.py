@@ -305,7 +305,7 @@ class DeliveryUseCasesImpl:
             return await self.run_review(delivery_id)
         return None
 
-    def reject(self, delivery_id: str, reason: str) -> dict | None:
+    def reject(self, delivery_id: str) -> dict | None:
         existing = self._repo.get_delivery(delivery_id)
         if existing is None:
             return None
@@ -496,9 +496,9 @@ class DeliveryUseCasesImpl:
         existing = self._repo.get_delivery(delivery_id)
         if existing is None:
             return None
-        if existing["phase"] != "plan" or existing["run_status"] != "pending":
+        if existing["phase"] != "plan" or existing["run_status"] not in ("pending", "running"):
             raise ValueError(
-                f"generate_plan: requires phase='plan' and run_status='pending', "
+                f"generate_plan: requires phase='plan' and run_status='pending'|'running', "
                 f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
             )
 
@@ -566,9 +566,9 @@ class DeliveryUseCasesImpl:
         existing = self._repo.get_delivery(delivery_id)
         if existing is None:
             return None
-        if existing["phase"] != "implement" or existing["run_status"] != "pending":
+        if existing["phase"] != "implement" or existing["run_status"] not in ("pending", "running"):
             raise ValueError(
-                f"run_implement: requires phase='implement' and run_status='pending', "
+                f"run_implement: requires phase='implement' and run_status='pending'|'running', "
                 f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
             )
 
@@ -593,9 +593,9 @@ class DeliveryUseCasesImpl:
         existing = self._repo.get_delivery(delivery_id)
         if existing is None:
             return None
-        if existing["phase"] != "review" or existing["run_status"] != "pending":
+        if existing["phase"] != "review" or existing["run_status"] not in ("pending", "running"):
             raise ValueError(
-                f"run_review: requires phase='review' and run_status='pending', "
+                f"run_review: requires phase='review' and run_status='pending'|'running', "
                 f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
             )
 

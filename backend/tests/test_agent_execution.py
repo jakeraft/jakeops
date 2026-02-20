@@ -258,7 +258,7 @@ class TestRunImplement:
 
     @pytest.mark.asyncio
     async def test_invalid_run_status(self, uc):
-        result = _create_delivery(uc, phase="implement", run_status="running")
+        result = _create_delivery(uc, phase="implement", run_status="succeeded")
         with pytest.raises(ValueError, match="run_implement"):
             await uc.run_implement(result["id"])
 
