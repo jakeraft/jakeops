@@ -47,7 +47,8 @@ class SourceUseCasesImpl:
             "created_at": datetime.now(KST).isoformat(),
             "token": body.token,
             "active": True,
-            "default_exit_phase": body.default_exit_phase,
+            "endpoint": body.endpoint,
+            "checkpoints": body.checkpoints,
         }
         self._repo.save_source(source_id, data)
         return self._mask_source(data)
@@ -61,8 +62,10 @@ class SourceUseCasesImpl:
             existing["token"] = body.token
         if body.active is not None:
             existing["active"] = body.active
-        if body.default_exit_phase is not None:
-            existing["default_exit_phase"] = body.default_exit_phase
+        if body.endpoint is not None:
+            existing["endpoint"] = body.endpoint
+        if body.checkpoints is not None:
+            existing["checkpoints"] = body.checkpoints
 
         self._repo.save_source(source_id, existing)
         return self._mask_source(existing)

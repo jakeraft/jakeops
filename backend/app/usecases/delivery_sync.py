@@ -40,7 +40,8 @@ class DeliverySyncUseCase:
             source["last_polled_at"] = datetime.now(KST).isoformat()
             self._sources.save_source(source["id"], source)
 
-            default_exit = source.get("default_exit_phase", "deploy")
+            default_endpoint = source.get("endpoint", "deploy")
+            default_checkpoints = source.get("checkpoints", ["plan", "implement", "review"])
 
             for gh_issue in gh_issues:
                 label = f"#{gh_issue.number}"
@@ -53,7 +54,8 @@ class DeliverySyncUseCase:
                 body = DeliveryCreate(
                     phase=Phase.intake,
                     run_status=RunStatus.pending,
-                    exit_phase=Phase(default_exit),
+                    endpoint=Phase(default_endpoint),
+                    checkpoints=[Phase(cp) for cp in default_checkpoints],
                     summary=f"GitHub Issue #{gh_issue.number}: {gh_issue.title}",
                     repository=f"{owner}/{repo}",
                     refs=[

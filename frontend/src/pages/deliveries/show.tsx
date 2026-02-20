@@ -31,8 +31,7 @@ import {
   STATUS_CLASSES,
 } from "@/utils/badge-styles"
 import { formatDateTime } from "@/utils/format"
-
-const GATE_PHASES: Phase[] = ["plan", "review", "deploy"]
+import { ACTION_PHASES } from "@/utils/kanban-rules"
 
 function isTerminal(phase: Phase, runStatus: RunStatus): boolean {
   return (
@@ -115,11 +114,11 @@ function ActionButtons({
 }) {
   const [rejectOpen, setRejectOpen] = useState(false)
   const terminal = isTerminal(phase, runStatus)
-  const isGatePhase = GATE_PHASES.includes(phase)
+  const isActionPhase = ACTION_PHASES.has(phase)
 
   return (
     <div className="flex gap-2 flex-wrap">
-      {isGatePhase && runStatus === "succeeded" && (
+      {isActionPhase && runStatus === "succeeded" && (
         <>
           <Button onClick={onApprove}>Approve</Button>
           <Button variant="outline" onClick={() => setRejectOpen(true)}>

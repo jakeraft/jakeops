@@ -1,4 +1,3 @@
-import { useDraggable } from "@dnd-kit/core"
 import { Badge } from "@/components/ui/badge"
 import type { Delivery } from "@/types"
 import { STATUS_CLASSES } from "@/utils/badge-styles"
@@ -10,33 +9,10 @@ interface KanbanCardProps {
 }
 
 export function KanbanCard({ delivery, onClick }: KanbanCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    isDragging,
-  } = useDraggable({ id: delivery.id, data: { delivery } })
-
-  const style = transform
-    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
-    : undefined
-
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className={`rounded-lg border bg-card p-3 shadow-sm cursor-grab active:cursor-grabbing space-y-2 ${
-        isDragging ? "opacity-50" : ""
-      }`}
-      onClick={(e) => {
-        if (!isDragging) {
-          e.stopPropagation()
-          onClick(delivery)
-        }
-      }}
+      className="rounded-lg border bg-card p-3 shadow-sm cursor-pointer hover:border-foreground/20 transition-colors space-y-2"
+      onClick={() => onClick(delivery)}
     >
       <p className="text-sm font-medium line-clamp-2">{delivery.summary}</p>
       <div className="flex items-center justify-between gap-2">

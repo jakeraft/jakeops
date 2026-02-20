@@ -11,11 +11,11 @@ def usecases(tmp_path):
     return DeliveryUseCasesImpl(repo)
 
 
-def _create_delivery(usecases, phase="intake", run_status="pending", exit_phase=None):
+def _create_delivery(usecases, phase="intake", run_status="pending", endpoint=None):
     body = DeliveryCreate(
         phase=phase,
         run_status=run_status,
-        exit_phase=exit_phase,
+        endpoint=endpoint,
         summary="test",
         repository="jakeops",
         refs=[{"role": "trigger", "type": "github_issue", "label": "#1"}],
@@ -38,14 +38,15 @@ class TestCRUD:
         assert delivery["runs"] == []
         assert delivery["phase"] == "intake"
         assert delivery["run_status"] == "pending"
-        assert delivery["exit_phase"] == "deploy"
+        assert delivery["endpoint"] == "deploy"
+        assert delivery["checkpoints"] == ["plan", "implement", "review"]
         assert len(delivery["phase_runs"]) == 1
         assert delivery["seq"] == 1
 
-    def test_create_delivery_with_exit_phase(self, usecases):
-        result = _create_delivery(usecases, exit_phase="verify")
+    def test_create_delivery_with_endpoint(self, usecases):
+        result = _create_delivery(usecases, endpoint="verify")
         delivery = usecases.get_delivery(result["id"])
-        assert delivery["exit_phase"] == "verify"
+        assert delivery["endpoint"] == "verify"
 
     def test_get_delivery(self, usecases):
         result = _create_delivery(usecases)
@@ -110,8 +111,8 @@ class TestCRUD:
         assert delivery["phase_runs"][-1]["run_status"] == "succeeded"
 
 
-class TestGateApprove:
-    """approve: gate phase with run_status=succeeded advances to next phase"""
+class TestApprove:
+    """approve: action phase with run_status=succeeded advances to next phase"""
 
     def test_approve_plan_to_implement(self, usecases):
         result = _create_delivery(usecases, phase="plan", run_status="succeeded")
@@ -127,20 +128,20 @@ class TestGateApprove:
         assert approved["phase"] == "verify"
         assert approved["run_status"] == "pending"
 
-    def test_approve_deploy_to_observe(self, usecases):
-        result = _create_delivery(usecases, phase="deploy", run_status="succeeded", exit_phase="observe")
+    def test_approve_implement_to_review(self, usecases):
+        result = _create_delivery(usecases, phase="implement", run_status="succeeded")
         approved = usecases.approve(result["id"])
-        assert approved["phase"] == "observe"
+        assert approved["phase"] == "review"
         assert approved["run_status"] == "pending"
 
-    def test_approve_at_exit_phase_goes_to_close(self, usecases):
-        result = _create_delivery(usecases, phase="deploy", run_status="succeeded", exit_phase="deploy")
+    def test_approve_at_endpoint_goes_to_close(self, usecases):
+        result = _create_delivery(usecases, phase="review", run_status="succeeded", endpoint="review")
         approved = usecases.approve(result["id"])
         assert approved["phase"] == "close"
 
-    def test_approve_non_gate_phase(self, usecases):
+    def test_approve_non_action_phase(self, usecases):
         result = _create_delivery(usecases, phase="intake", run_status="succeeded")
-        with pytest.raises(ValueError, match="not a gate phase"):
+        with pytest.raises(ValueError, match="not an action phase"):
             usecases.approve(result["id"])
 
     def test_approve_not_succeeded(self, usecases):
@@ -160,13 +161,19 @@ class TestGateApprove:
         assert delivery["phase_runs"][-1]["run_status"] == "pending"
 
 
-class TestGateReject:
-    """reject: gate phase sends delivery back to previous phase"""
+class TestReject:
+    """reject: action phase sends delivery back to previous phase"""
 
     def test_reject_plan_to_intake(self, usecases):
         result = _create_delivery(usecases, phase="plan", run_status="succeeded")
         rejected = usecases.reject(result["id"], reason="Inadequate plan")
         assert rejected["phase"] == "intake"
+        assert rejected["run_status"] == "pending"
+
+    def test_reject_implement_to_plan(self, usecases):
+        result = _create_delivery(usecases, phase="implement", run_status="succeeded")
+        rejected = usecases.reject(result["id"], reason="Wrong approach")
+        assert rejected["phase"] == "plan"
         assert rejected["run_status"] == "pending"
 
     def test_reject_review_to_implement(self, usecases):
@@ -175,16 +182,16 @@ class TestGateReject:
         assert rejected["phase"] == "implement"
         assert rejected["run_status"] == "pending"
 
-    def test_reject_deploy_to_verify(self, usecases):
-        result = _create_delivery(usecases, phase="deploy", run_status="succeeded")
-        rejected = usecases.reject(result["id"], reason="Deployment rollback")
-        assert rejected["phase"] == "verify"
-        assert rejected["run_status"] == "pending"
-
-    def test_reject_non_gate_phase(self, usecases):
+    def test_reject_non_action_phase(self, usecases):
         result = _create_delivery(usecases, phase="intake", run_status="pending")
         with pytest.raises(ValueError, match="reject"):
             usecases.reject(result["id"], reason="x")
+
+    def test_reject_stores_reason(self, usecases):
+        result = _create_delivery(usecases, phase="review", run_status="succeeded")
+        usecases.reject(result["id"], reason="Code quality issues")
+        delivery = usecases.get_delivery(result["id"])
+        assert delivery["reject_reason"] == "Code quality issues"
 
     def test_reject_appends_phase_run(self, usecases):
         result = _create_delivery(usecases, phase="plan", run_status="succeeded")

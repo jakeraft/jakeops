@@ -17,7 +17,9 @@ export type RunStatus =
   | "blocked"
   | "canceled"
 
-export type ExecutorKind = "system" | "agent" | "human"
+export type ExecutorKind = "system" | "agent"
+
+export type Verdict = "pass" | "not_pass"
 
 // Refs
 export type RefRole = "trigger" | "output" | "parent"
@@ -43,6 +45,7 @@ export interface PhaseRun {
   phase: Phase
   run_status: RunStatus
   executor: ExecutorKind
+  verdict?: Verdict
   started_at?: string
   ended_at?: string
 }
@@ -84,7 +87,8 @@ export interface Delivery {
   updated_at: string
   phase: Phase
   run_status: RunStatus
-  exit_phase: Phase
+  endpoint: Phase
+  checkpoints: Phase[]
   summary: string
   repository: string
   refs: Ref[]
@@ -92,6 +96,7 @@ export interface Delivery {
   phase_runs: PhaseRun[]
   plan?: Plan
   error?: string
+  reject_reason?: string
 }
 
 // Source
@@ -105,7 +110,8 @@ export interface Source {
   created_at: string
   token: string
   active: boolean
-  default_exit_phase: string
+  endpoint: string
+  checkpoints: string[]
   last_polled_at?: string
 }
 
@@ -114,13 +120,15 @@ export interface SourceCreate {
   owner: string
   repo: string
   token?: string
-  default_exit_phase?: string
+  endpoint?: string
+  checkpoints?: string[]
 }
 
 export interface SourceUpdate {
   token?: string
   active?: boolean
-  default_exit_phase?: string
+  endpoint?: string
+  checkpoints?: string[]
 }
 
 // Transcript

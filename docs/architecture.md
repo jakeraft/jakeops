@@ -9,18 +9,20 @@ System principle: **System repeats, Agent decides.**
 - state machine and transition validation
 - polling/retry/timeout orchestration
 - external system calls and artifact persistence
-- policy gates (approve/reject/retry/cancel)
+- auto-advance between phases (non-checkpoint phases)
 
 ### Agent (non-deterministic)
 
 - implementation planning
 - code changes
+- code review and verdict (pass/not_pass)
 - failure analysis and fix suggestions
 - run summaries
 
 ### Human
 
-- gate approval/rejection on critical transitions
+- actions at checkpoint phases (approve/reject/retry/cancel)
+- pipeline configuration (endpoint, checkpoints)
 
 ## Core Domain
 
@@ -29,7 +31,8 @@ System principle: **System repeats, Agent decides.**
 Single orchestration unit for a delivery workflow.
 
 - workflow phase (`phase`) + execution status (`run_status`)
-- variable-length pipeline via `exit_phase`
+- variable-length pipeline via `endpoint`
+- configurable pause points via `checkpoints`
 - references (`refs`: trigger/output/parent)
 - optional plan metadata
 - run history and transcripts
@@ -42,29 +45,131 @@ Delivery ingestion source (currently GitHub repositories).
 - owner/repo coordinates
 - optional token
 - active flag
-- `default_exit_phase` for pipeline length control
+- `endpoint` for pipeline length control
+- `checkpoints` for pause point configuration
 
 ### Worker status
 
 In-memory status for background runners (currently delivery sync poller).
 
-## Phase Model (v4)
+## State Machine
+
+### Phase Pipeline
 
 ```text
 intake -> plan -> implement -> review -> verify -> deploy -> observe -> close
 ```
 
-Each phase has an independent `run_status`: `pending | running | succeeded | failed | blocked | canceled`.
+### Two-Dimensional State
 
-Gate phases requiring human approval: `plan`, `review`, `deploy`.
+Each Delivery has two orthogonal state axes:
 
-Actions:
+| Axis | Field | Question |
+|------|-------|----------|
+| Phase | `phase` | Where are we in the lifecycle? |
+| Run Status | `run_status` | How is the current phase going? |
 
-- `approve` — advance past gate phase (requires `run_status == succeeded`)
-- `reject` — revert to previous phase at gate
-- `retry` — reset `run_status` to `pending` on same phase (from `failed`)
-- `cancel` — set `run_status = canceled` (terminal)
-- `generate-plan` — trigger plan generation (only from `intake`)
+RunStatus values: `pending | running | succeeded | failed | blocked | canceled`.
+
+### Executor
+
+Each phase has a default executor:
+
+| Phase | Executor | Description |
+|-------|----------|-------------|
+| intake | system | Auto-detected from source sync |
+| plan | agent | AI generates implementation plan |
+| implement | agent | AI writes code changes |
+| review | agent | AI reviews code, produces verdict |
+| verify | system | CI/CD runs tests |
+| deploy | system | CI/CD deploys |
+| observe | system | Monitoring |
+| close | system | Terminal |
+
+Only two executor types exist: `system` and `agent`.
+Human is not an executor — human performs **actions** at checkpoint phases.
+
+### Verdict (Review Phase)
+
+Review is unique: the agent produces a **verdict** in addition to run_status.
+
+- `run_status` tracks execution: did the agent complete its work?
+- `verdict` tracks business outcome: did the code pass review?
+
+| run_status | verdict | Meaning |
+|------------|---------|---------|
+| succeeded | pass | Agent reviewed, code passed |
+| succeeded | not_pass | Agent reviewed, code failed review |
+| failed | — | Agent crashed/errored |
+
+### Actions
+
+Human actions are available at **action phases** (`plan`, `implement`, `review`):
+
+| Phase | run_status | Action | Result |
+|-------|-----------|--------|--------|
+| plan | succeeded | approve | → implement (running) |
+| plan | failed | retry | → plan (pending) |
+| implement | succeeded | approve | → review (running) |
+| implement | succeeded | reject | → plan (pending) |
+| implement | failed | retry | → implement (pending) |
+| review | succeeded + pass | approve | → verify (pending) |
+| review | succeeded + not_pass | reject | → implement (pending, with feedback) |
+| review | failed | retry | → review (pending) |
+| any | — | cancel | → canceled (terminal) |
+
+### Checkpoints and Endpoint
+
+Two Source-level configurations control pipeline behavior:
+
+| Setting | Purpose | Default |
+|---------|---------|---------|
+| `endpoint` | Where the pipeline ends | `"deploy"` |
+| `checkpoints` | Where the pipeline pauses for human action | `["plan", "implement", "review"]` |
+
+**Auto-flow rule**: when a phase completes (succeeded), the pipeline automatically
+advances to the next phase **unless** the current phase is in `checkpoints`.
+If the current phase equals `endpoint`, it advances to `close`.
+
+**Failed phases always pause** regardless of checkpoint configuration.
+
+**Review verdict=not_pass auto-rejects** to implement regardless of checkpoints.
+
+### Flow Diagram
+
+```text
+                         reject
+                    ┌───────────────┐
+                    ▼               │
+ [intake] ──→ [plan] ──approve──→ [implement] ──approve──→ [review]
+  system       agent    (action)     agent       (action)    agent
+                                       ▲                      │
+                                       │    reject (not_pass)  │
+                                       └──────────────────────┘
+                                                              │
+                                              approve (pass)  │
+                                                              ▼
+                                                          [verify]
+                                                           system
+                                                              │
+              [close] ←── [observe] ←── [deploy] ←───────────┘
+              system       system        system
+
+Legend:
+  ── auto-advance (no checkpoint)
+  ──action──  pauses at checkpoint for human action
+  Dashed paths depend on checkpoint configuration
+```
+
+### Terminal State
+
+```python
+def is_terminal(delivery) -> bool:
+    return (
+        (delivery.phase == "close" and delivery.run_status == "succeeded")
+        or delivery.run_status == "canceled"
+    )
+```
 
 ## Runtime Components
 

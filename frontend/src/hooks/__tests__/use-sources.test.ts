@@ -14,7 +14,7 @@ const MOCK_SOURCES = [
     created_at: new Date().toISOString(),
     token: "ghp_***",
     active: true,
-    default_exit_phase: "deploy",
+    endpoint: "deploy",
   },
 ]
 

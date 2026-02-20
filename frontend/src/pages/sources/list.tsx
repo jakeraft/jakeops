@@ -36,14 +36,14 @@ function AddSourceDialog({
   const [owner, setOwner] = useState("")
   const [repo, setRepo] = useState("")
   const [token, setToken] = useState("")
-  const [exitPhase, setExitPhase] = useState("deploy")
+  const [endpoint, setEndpoint] = useState("deploy")
   const [submitting, setSubmitting] = useState(false)
 
   function reset() {
     setOwner("")
     setRepo("")
     setToken("")
-    setExitPhase("deploy")
+    setEndpoint("deploy")
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -55,7 +55,7 @@ function AddSourceDialog({
         owner,
         repo,
         token: token || undefined,
-        default_exit_phase: exitPhase || undefined,
+        endpoint: endpoint || undefined,
       })
       reset()
       setOpen(false)
@@ -113,11 +113,11 @@ function AddSourceDialog({
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="add-exit-phase">Default Exit Phase</Label>
+              <Label htmlFor="add-endpoint">Endpoint</Label>
               <Input
-                id="add-exit-phase"
-                value={exitPhase}
-                onChange={(e) => setExitPhase(e.target.value)}
+                id="add-endpoint"
+                value={endpoint}
+                onChange={(e) => setEndpoint(e.target.value)}
               />
             </div>
           </div>
@@ -144,13 +144,13 @@ function EditSourceDialog({
   const [open, setOpen] = useState(false)
   const [token, setToken] = useState("")
   const [active, setActive] = useState(source.active)
-  const [exitPhase, setExitPhase] = useState(source.default_exit_phase)
+  const [endpoint, setEndpoint] = useState(source.endpoint)
   const [submitting, setSubmitting] = useState(false)
 
   function resetToSource() {
     setToken("")
     setActive(source.active)
-    setExitPhase(source.default_exit_phase)
+    setEndpoint(source.endpoint)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -159,7 +159,7 @@ function EditSourceDialog({
     try {
       const body: SourceUpdate = {
         active,
-        default_exit_phase: exitPhase,
+        endpoint: endpoint,
       }
       if (token) {
         body.token = token
@@ -212,13 +212,13 @@ function EditSourceDialog({
               <Label htmlFor={`edit-active-${source.id}`}>Active</Label>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor={`edit-exit-phase-${source.id}`}>
-                Default Exit Phase
+              <Label htmlFor={`edit-endpoint-${source.id}`}>
+                Endpoint
               </Label>
               <Input
-                id={`edit-exit-phase-${source.id}`}
-                value={exitPhase}
-                onChange={(e) => setExitPhase(e.target.value)}
+                id={`edit-endpoint-${source.id}`}
+                value={endpoint}
+                onChange={(e) => setEndpoint(e.target.value)}
               />
             </div>
           </div>
@@ -299,7 +299,7 @@ export function SourceList() {
               <TableHead>Type</TableHead>
               <TableHead>Repository</TableHead>
               <TableHead>Active</TableHead>
-              <TableHead>Exit Phase</TableHead>
+              <TableHead>Endpoint</TableHead>
               <TableHead>Last Synced</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -316,7 +316,7 @@ export function SourceList() {
                     {s.active ? "active" : "inactive"}
                   </Badge>
                 </TableCell>
-                <TableCell>{s.default_exit_phase}</TableCell>
+                <TableCell>{s.endpoint}</TableCell>
                 <TableCell className="text-muted-foreground">
                   {s.last_polled_at
                     ? formatRelativeTime(s.last_polled_at)

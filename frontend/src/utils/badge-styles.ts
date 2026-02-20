@@ -23,7 +23,6 @@ export const STATUS_CLASSES: Record<RunStatus, string> = {
 export const EXECUTOR_CLASSES: Record<ExecutorKind, string> = {
   system: "bg-gray-100 text-gray-700",
   agent: "bg-violet-100 text-violet-700",
-  human: "bg-blue-100 text-blue-700",
 }
 
 export const MODE_CLASSES: Record<AgentRun["mode"], string> = {

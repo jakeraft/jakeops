@@ -7,6 +7,7 @@ from datetime import datetime
 
 from app.domain.constants import KST, SCHEMA_VERSION, ID_HEX_LENGTH
 from app.domain.models.delivery import DeliveryCreate, DeliveryUpdate, Phase, RunStatus, ExecutorKind
+from app.domain.models.source import DEFAULT_CHECKPOINTS
 from app.domain.prompts import (
     build_plan_prompt,
     build_implement_prompt,
@@ -40,19 +41,20 @@ FORWARD_TRANSITIONS: dict[str, str] = {
     "observe": "close",
 }
 
-GATE_PHASES = {"plan", "review", "deploy"}
-
 REJECT_TRANSITIONS: dict[str, str] = {
     "plan": "intake",
+    "implement": "plan",
     "review": "implement",
-    "deploy": "verify",
 }
+
+# Phases that support human actions (approve/reject/retry)
+ACTION_PHASES = {"plan", "implement", "review"}
 
 DEFAULT_EXECUTOR: dict[str, str] = {
     "intake": "system",
     "plan": "agent",
     "implement": "agent",
-    "review": "human",
+    "review": "agent",
     "verify": "system",
     "deploy": "system",
     "observe": "system",
@@ -60,7 +62,13 @@ DEFAULT_EXECUTOR: dict[str, str] = {
 }
 
 
-def _append_phase_run(delivery: dict, phase: str, run_status: str, executor: str | None = None) -> None:
+def _append_phase_run(
+    delivery: dict,
+    phase: str,
+    run_status: str,
+    executor: str | None = None,
+    verdict: str | None = None,
+) -> None:
     now = datetime.now(KST).isoformat()
     if executor is None:
         executor = DEFAULT_EXECUTOR.get(phase, "system")
@@ -68,6 +76,7 @@ def _append_phase_run(delivery: dict, phase: str, run_status: str, executor: str
         "phase": phase,
         "run_status": run_status,
         "executor": executor,
+        "verdict": verdict,
         "started_at": now,
         "ended_at": None,
     }
@@ -102,8 +111,10 @@ class DeliveryUseCasesImpl:
         data["runs"] = []
         data["phase_runs"] = []
 
-        if data.get("exit_phase") is None:
-            data["exit_phase"] = "deploy"
+        if data.get("endpoint") is None:
+            data["endpoint"] = "deploy"
+        if data.get("checkpoints") is None:
+            data["checkpoints"] = list(DEFAULT_CHECKPOINTS)
 
         trigger_label = ""
         for ref in data.get("refs", []):
@@ -156,16 +167,18 @@ class DeliveryUseCasesImpl:
             return None
         current_phase = existing["phase"]
         current_run_status = existing["run_status"]
+        # TODO: use checkpoints for auto-advance logic
+        # checkpoints = existing.get("checkpoints", list(DEFAULT_CHECKPOINTS))
 
-        if current_phase not in GATE_PHASES:
-            raise ValueError(f"approve: '{current_phase}' is not a gate phase")
+        if current_phase not in ACTION_PHASES:
+            raise ValueError(f"approve: '{current_phase}' is not an action phase")
         if current_run_status != "succeeded":
             raise ValueError(
                 f"approve: run_status must be 'succeeded', got '{current_run_status}'"
             )
 
-        exit_phase = existing.get("exit_phase", "deploy")
-        if current_phase == exit_phase:
+        endpoint = existing.get("endpoint", "deploy")
+        if current_phase == endpoint:
             next_phase = "close"
         else:
             next_phase = FORWARD_TRANSITIONS[current_phase]
@@ -187,6 +200,7 @@ class DeliveryUseCasesImpl:
         prev_phase = REJECT_TRANSITIONS[current_phase]
         existing["phase"] = prev_phase
         existing["run_status"] = "pending"
+        existing["reject_reason"] = reason
         existing["updated_at"] = datetime.now(KST).isoformat()
         _append_phase_run(existing, prev_phase, "pending")
         self._repo.save_delivery(delivery_id, existing)

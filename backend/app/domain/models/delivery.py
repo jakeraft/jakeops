@@ -26,13 +26,18 @@ class RunStatus(str, Enum):
 class ExecutorKind(str, Enum):
     system = "system"
     agent = "agent"
-    human = "human"
+
+
+class Verdict(str, Enum):
+    passed = "pass"
+    not_passed = "not_pass"
 
 
 class PhaseRun(BaseModel):
     phase: Phase
     run_status: RunStatus
     executor: ExecutorKind
+    verdict: Verdict | None = None
     started_at: str | None = None
     ended_at: str | None = None
 
@@ -86,7 +91,8 @@ class DeliveryCreate(BaseModel, extra="ignore"):
     created_at: str | None = None
     phase: Phase = Phase.intake
     run_status: RunStatus = RunStatus.pending
-    exit_phase: Phase | None = None
+    endpoint: Phase | None = None
+    checkpoints: list[Phase] | None = None
     summary: str
     repository: str
     refs: list[Ref]
@@ -99,3 +105,4 @@ class DeliveryUpdate(BaseModel):
     plan: Plan | None = None
     refs: list[Ref] | None = None
     error: str | None = None
+    reject_reason: str | None = None

@@ -35,8 +35,16 @@ class TestExecutorKindEnum:
     def test_all_values(self):
         from app.domain.models.delivery import ExecutorKind
 
-        expected = ["system", "agent", "human"]
+        expected = ["system", "agent"]
         assert [e.value for e in ExecutorKind] == expected
+
+
+class TestVerdictEnum:
+    def test_all_values(self):
+        from app.domain.models.delivery import Verdict
+
+        expected = ["pass", "not_pass"]
+        assert [v.value for v in Verdict] == expected
 
 
 class TestPhaseRun:
@@ -64,6 +72,18 @@ class TestPhaseRun:
         )
         assert run.started_at is None
         assert run.ended_at is None
+        assert run.verdict is None
+
+    def test_with_verdict(self):
+        from app.domain.models.delivery import PhaseRun, Phase, RunStatus, ExecutorKind, Verdict
+
+        run = PhaseRun(
+            phase=Phase.review,
+            run_status=RunStatus.succeeded,
+            executor=ExecutorKind.agent,
+            verdict=Verdict.passed,
+        )
+        assert run.verdict == Verdict.passed
 
 
 class TestDeliveryCreate:
@@ -79,7 +99,7 @@ class TestDeliveryCreate:
         )
         assert delivery.phase == Phase.intake
         assert delivery.run_status == RunStatus.pending
-        assert delivery.exit_phase is None
+        assert delivery.endpoint is None
         assert delivery.summary == "Fix login bug"
         assert delivery.repository == "owner/repo"
         assert len(delivery.refs) == 1
@@ -93,14 +113,14 @@ class TestDeliveryCreate:
         delivery = DeliveryCreate(
             phase=Phase.plan,
             run_status=RunStatus.succeeded,
-            exit_phase=Phase.verify,
+            endpoint=Phase.verify,
             summary="test",
             repository="owner/repo",
             refs=[],
         )
         assert delivery.phase == Phase.plan
         assert delivery.run_status == RunStatus.succeeded
-        assert delivery.exit_phase == Phase.verify
+        assert delivery.endpoint == Phase.verify
 
     def test_invalid_phase(self):
         from app.domain.models.delivery import DeliveryCreate

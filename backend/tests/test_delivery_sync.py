@@ -164,12 +164,12 @@ def test_sync_legacy_source_without_token_and_active():
     assert github_repo.last_token == ""
 
 
-def test_sync_uses_source_default_exit_phase():
-    """Source with default_exit_phase passes it through to created deliveries."""
+def test_sync_uses_source_endpoint():
+    """Source with endpoint passes it through to created deliveries."""
     issues = [GitHubIssue(number=1, title="Bug", html_url="https://github.com/o/r/issues/1", state="open")]
     github_repo = FakeGitHubRepo(issues)
     source_repo = FakeSourceRepo([
-        {"id": "s1", "owner": "o", "repo": "r", "default_exit_phase": "verify"},
+        {"id": "s1", "owner": "o", "repo": "r", "endpoint": "verify"},
     ])
     delivery_uc = FakeDeliveryUseCases()
 
@@ -177,7 +177,23 @@ def test_sync_uses_source_default_exit_phase():
     uc.sync_once()
 
     body = delivery_uc.created[0]
-    assert body.exit_phase.value == "verify"
+    assert body.endpoint.value == "verify"
+
+
+def test_sync_uses_source_checkpoints():
+    """Source with checkpoints passes them through to created deliveries."""
+    issues = [GitHubIssue(number=1, title="Bug", html_url="https://github.com/o/r/issues/1", state="open")]
+    github_repo = FakeGitHubRepo(issues)
+    source_repo = FakeSourceRepo([
+        {"id": "s1", "owner": "o", "repo": "r", "checkpoints": ["plan"]},
+    ])
+    delivery_uc = FakeDeliveryUseCases()
+
+    uc = DeliverySyncUseCase(github_repo, source_repo, delivery_uc)
+    uc.sync_once()
+
+    body = delivery_uc.created[0]
+    assert [cp.value for cp in body.checkpoints] == ["plan"]
 
 
 def test_sync_closes_delivery_when_issue_closed():

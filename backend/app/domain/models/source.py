@@ -1,10 +1,13 @@
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SourceType(str, Enum):
     github = "github"
+
+
+DEFAULT_CHECKPOINTS: list[str] = ["plan", "implement", "review"]
 
 
 class Source(BaseModel):
@@ -15,7 +18,8 @@ class Source(BaseModel):
     created_at: str
     token: str = ""
     active: bool = True
-    default_exit_phase: str = "deploy"
+    endpoint: str = "deploy"
+    checkpoints: list[str] = Field(default_factory=lambda: list(DEFAULT_CHECKPOINTS))
     last_polled_at: str | None = None
 
 
@@ -24,10 +28,12 @@ class SourceCreate(BaseModel):
     owner: str
     repo: str
     token: str = ""
-    default_exit_phase: str = "deploy"
+    endpoint: str = "deploy"
+    checkpoints: list[str] = Field(default_factory=lambda: list(DEFAULT_CHECKPOINTS))
 
 
 class SourceUpdate(BaseModel):
     token: str | None = None
     active: bool | None = None
-    default_exit_phase: str | None = None
+    endpoint: str | None = None
+    checkpoints: list[str] | None = None

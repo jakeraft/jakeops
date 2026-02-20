@@ -14,8 +14,7 @@ import { formatRelativeTime } from "@/utils/format"
 import { RejectDialog } from "./reject-dialog"
 import { useState } from "react"
 import type { Phase, RunStatus } from "@/types"
-
-const GATE_PHASES: Phase[] = ["plan", "review", "deploy"]
+import { ACTION_PHASES } from "@/utils/kanban-rules"
 
 function isTerminal(phase: Phase, runStatus: RunStatus): boolean {
   return (
@@ -125,7 +124,7 @@ export function DetailSheet({
 
               {/* Action Buttons */}
               <div className="flex flex-wrap gap-2">
-                {GATE_PHASES.includes(delivery.phase) &&
+                {ACTION_PHASES.has(delivery.phase) &&
                   delivery.run_status === "succeeded" && (
                     <>
                       <Button size="sm" onClick={() => handleAction(approve)}>

@@ -51,31 +51,66 @@ Two orthogonal axes describe a Delivery's state:
 
 RunStatus values: `pending`, `running`, `succeeded`, `failed`, `blocked`, `canceled`.
 
-### Exit Phase
+### Executor
+
+Two executor types: `system` and `agent`.
+
+Human is **not** an executor. Human performs **actions** (approve, reject, retry, cancel)
+at configured checkpoint phases. The distinction:
+
+- **Executor**: who runs the phase (system or agent)
+- **Action**: what human decides after a phase completes
+
+### Verdict (Review)
+
+The review phase is unique — the agent produces a **verdict** alongside the run_status:
+
+| run_status | verdict | Meaning |
+|------------|---------|---------|
+| succeeded | pass | Code passed review |
+| succeeded | not_pass | Code failed review (with feedback) |
+| failed | — | Agent execution crashed |
+
+This separation ensures we can distinguish "agent crashed" from "code didn't pass review".
+
+### Endpoint
 
 Not every Delivery needs the full pipeline.
-`exit_phase` controls where the lifecycle ends:
+`endpoint` controls where the lifecycle ends:
 
-- Library repo → `exit_phase: verify` (no deploy)
-- Docs repo → `exit_phase: review` (no CI)
-- Default → `exit_phase: deploy`
+- Library repo → `endpoint: verify` (no deploy)
+- Docs repo → `endpoint: review` (no CI)
+- Default → `endpoint: deploy`
 
-When `phase == exit_phase` and `run_status == succeeded`, the Delivery
+When `phase == endpoint` and `run_status == succeeded`, the Delivery
 transitions directly to `close`.
+
+### Checkpoints
+
+`checkpoints` controls where the pipeline pauses for human action:
+
+- Default → `checkpoints: ["plan", "implement", "review"]` (pause at every action phase)
+- Trusted repo → `checkpoints: ["plan"]` (only review the plan)
+- Full auto → `checkpoints: []` (no human intervention)
+
+Both `endpoint` and `checkpoints` are configured at the Source level
+and copied to each Delivery on creation.
 
 ## Transition Rules
 
-### Forward (gate phases)
+### Forward (action phases)
 
-Gate phases (`plan`, `review`, `deploy`) require explicit human **approve**
-before advancing. The Delivery must have `run_status == succeeded`.
+Action phases (`plan`, `implement`, `review`) support human **approve**
+to advance. The Delivery must have `run_status == succeeded`.
+
+At non-checkpoint phases, the system auto-advances without human intervention.
 
 ### Reject
 
-At gate phases, human can **reject** to send the Delivery back:
+At action phases, human can **reject** to send the Delivery back:
 - `plan` → `intake`
+- `implement` → `plan`
 - `review` → `implement`
-- `deploy` → `verify`
 
 ### Retry
 
@@ -84,6 +119,25 @@ From `run_status == failed`, **retry** resets to `pending` in the same phase.
 ### Cancel
 
 Sets `run_status = canceled`. Phase unchanged. Terminal.
+
+## Auto-Flow Logic
+
+```
+Phase completed (succeeded):
+  ├─ phase in checkpoints → PAUSE, wait for human action
+  ├─ phase == endpoint → auto-advance to close
+  └─ else → auto-advance to next phase
+
+Phase failed:
+  └─ always PAUSE (human decides retry)
+
+Review completed (succeeded):
+  ├─ verdict = pass
+  │   ├─ "review" in checkpoints → PAUSE
+  │   └─ else → auto-advance
+  └─ verdict = not_pass
+      └─ auto-reject → implement (with feedback, always)
+```
 
 ## Terminal State (computed)
 
