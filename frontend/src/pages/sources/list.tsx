@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,13 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import {
   Table,
@@ -22,8 +30,10 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useSources } from "@/hooks/use-sources"
-import type { Source, SourceCreate, SourceUpdate } from "@/types"
+import type { Phase, Source, SourceCreate, SourceUpdate } from "@/types"
+import { PHASE_CLASSES } from "@/utils/badge-styles"
 import { formatRelativeTime } from "@/utils/format"
+import { PHASES } from "@/utils/kanban-rules"
 
 // --- Add Source Dialog ---
 
@@ -37,6 +47,7 @@ function AddSourceDialog({
   const [repo, setRepo] = useState("")
   const [token, setToken] = useState("")
   const [endpoint, setEndpoint] = useState("deploy")
+  const [checkpoints, setCheckpoints] = useState<string[]>(["plan", "implement", "review"])
   const [submitting, setSubmitting] = useState(false)
 
   function reset() {
@@ -44,6 +55,7 @@ function AddSourceDialog({
     setRepo("")
     setToken("")
     setEndpoint("deploy")
+    setCheckpoints(["plan", "implement", "review"])
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -56,6 +68,7 @@ function AddSourceDialog({
         repo,
         token: token || undefined,
         endpoint: endpoint || undefined,
+        checkpoints,
       })
       reset()
       setOpen(false)
@@ -114,11 +127,43 @@ function AddSourceDialog({
             </div>
             <div className="grid gap-2">
               <Label htmlFor="add-endpoint">Endpoint</Label>
-              <Input
-                id="add-endpoint"
-                value={endpoint}
-                onChange={(e) => setEndpoint(e.target.value)}
-              />
+              <Select value={endpoint} onValueChange={setEndpoint}>
+                <SelectTrigger id="add-endpoint">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PHASES.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Checkpoints</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {PHASES.filter((p) => p !== "intake" && p !== "close").map(
+                  (p) => (
+                    <label
+                      key={p}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <Checkbox
+                        checked={checkpoints.includes(p)}
+                        onCheckedChange={(checked) => {
+                          setCheckpoints((prev) =>
+                            checked
+                              ? [...prev, p]
+                              : prev.filter((c) => c !== p),
+                          )
+                        }}
+                      />
+                      {p}
+                    </label>
+                  ),
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter className="mt-6">
@@ -145,12 +190,14 @@ function EditSourceDialog({
   const [token, setToken] = useState("")
   const [active, setActive] = useState(source.active)
   const [endpoint, setEndpoint] = useState(source.endpoint)
+  const [checkpoints, setCheckpoints] = useState<string[]>(source.checkpoints)
   const [submitting, setSubmitting] = useState(false)
 
   function resetToSource() {
     setToken("")
     setActive(source.active)
     setEndpoint(source.endpoint)
+    setCheckpoints(source.checkpoints)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -160,6 +207,7 @@ function EditSourceDialog({
       const body: SourceUpdate = {
         active,
         endpoint: endpoint,
+        checkpoints,
       }
       if (token) {
         body.token = token
@@ -215,11 +263,43 @@ function EditSourceDialog({
               <Label htmlFor={`edit-endpoint-${source.id}`}>
                 Endpoint
               </Label>
-              <Input
-                id={`edit-endpoint-${source.id}`}
-                value={endpoint}
-                onChange={(e) => setEndpoint(e.target.value)}
-              />
+              <Select value={endpoint} onValueChange={setEndpoint}>
+                <SelectTrigger id={`edit-endpoint-${source.id}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PHASES.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Checkpoints</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {PHASES.filter((p) => p !== "intake" && p !== "close").map(
+                  (p) => (
+                    <label
+                      key={p}
+                      className="flex items-center gap-2 text-sm"
+                    >
+                      <Checkbox
+                        checked={checkpoints.includes(p)}
+                        onCheckedChange={(checked) => {
+                          setCheckpoints((prev) =>
+                            checked
+                              ? [...prev, p]
+                              : prev.filter((c) => c !== p),
+                          )
+                        }}
+                      />
+                      {p}
+                    </label>
+                  ),
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter className="mt-6">
@@ -300,6 +380,7 @@ export function SourceList() {
               <TableHead>Type</TableHead>
               <TableHead>Active</TableHead>
               <TableHead>Endpoint</TableHead>
+              <TableHead>Checkpoints</TableHead>
               <TableHead>Last Synced</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -325,6 +406,19 @@ export function SourceList() {
                   </Badge>
                 </TableCell>
                 <TableCell>{s.endpoint}</TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {s.checkpoints.map((cp) => (
+                      <Badge
+                        key={cp}
+                        variant="secondary"
+                        className={PHASE_CLASSES[cp as Phase]}
+                      >
+                        {cp}
+                      </Badge>
+                    ))}
+                  </div>
+                </TableCell>
                 <TableCell className="text-muted-foreground">
                   {s.last_polled_at
                     ? formatRelativeTime(s.last_polled_at)
