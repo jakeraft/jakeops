@@ -31,14 +31,7 @@ import {
   STATUS_CLASSES,
 } from "@/utils/badge-styles"
 import { formatDateTime } from "@/utils/format"
-import { ACTION_PHASES } from "@/utils/kanban-rules"
-
-function isTerminal(phase: Phase, runStatus: RunStatus): boolean {
-  return (
-    (phase === "close" && runStatus === "succeeded") ||
-    runStatus === "canceled"
-  )
-}
+import { ACTION_PHASES, isTerminal } from "@/utils/kanban-rules"
 
 // --- Sub-components ---
 
@@ -411,7 +404,18 @@ export function DeliveryShow() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <h1 className="text-2xl font-bold">{delivery.summary}</h1>
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold">{delivery.summary}</h1>
+        <div className="flex items-center gap-2 text-sm">
+          <Badge variant="secondary" className={PHASE_CLASSES[delivery.phase]}>
+            {delivery.phase}
+          </Badge>
+          <Badge variant="secondary" className={STATUS_CLASSES[delivery.run_status]}>
+            {delivery.run_status}
+          </Badge>
+          <span className="text-muted-foreground">{delivery.repository}</span>
+        </div>
+      </div>
 
       {/* Action Error */}
       {actionError && (
