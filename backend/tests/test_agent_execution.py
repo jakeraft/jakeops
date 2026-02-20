@@ -166,6 +166,28 @@ class TestGeneratePlan:
         assert "timeout" in plan_result["error"]
         delivery = uc.get_delivery(result["id"])
         assert delivery["run_status"] == "failed"
+        # Phase should be rolled back to intake so generate_plan can be retried
+        assert delivery["phase"] == "intake"
+        assert plan_result["phase"] == "intake"
+
+    @pytest.mark.asyncio
+    async def test_failure_does_not_mutate_caller_dict(self, repos, git_ops):
+        """_run_agent_phase must not mutate the caller's delivery dict."""
+        delivery_repo, source_repo = repos
+
+        class FailingRunner:
+            async def run_with_stream(
+                self, prompt, cwd, allowed_tools=None, append_system_prompt=None,
+            ):
+                raise RuntimeError("fail")
+
+        uc = DeliveryUseCasesImpl(delivery_repo, FailingRunner(), git_ops, source_repo)
+        result = _create_delivery(uc)
+        delivery_before = uc.get_delivery(result["id"])
+        original_run_status = delivery_before["run_status"]
+        await uc.generate_plan(result["id"])
+        # The local dict should not have been mutated by _run_agent_phase
+        assert delivery_before["run_status"] == original_run_status
 
     @pytest.mark.asyncio
     async def test_saves_transcript_file(self, uc):

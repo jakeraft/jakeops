@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import shutil
 import tempfile
@@ -199,6 +200,7 @@ class DeliveryUseCasesImpl:
         if self._runner is None or self._git is None:
             raise RuntimeError("SubprocessRunner and GitOperations required for agent execution")
 
+        delivery = copy.deepcopy(delivery)
         delivery["run_status"] = "running"
         delivery["updated_at"] = datetime.now(KST).isoformat()
         _append_phase_run(delivery, delivery["phase"], "running")
@@ -292,7 +294,12 @@ class DeliveryUseCasesImpl:
             system_prompt=PLAN_SYSTEM_PROMPT,
         )
 
-        if result["run_status"] == "succeeded":
+        if result["run_status"] == "failed":
+            delivery = self._repo.get_delivery(delivery_id)
+            delivery["phase"] = "intake"
+            self._repo.save_delivery(delivery_id, delivery)
+            result["phase"] = "intake"
+        elif result["run_status"] == "succeeded":
             delivery = self._repo.get_delivery(delivery_id)
             delivery["plan"] = {
                 "content": result.get("result_text", ""),
