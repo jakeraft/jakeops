@@ -105,6 +105,7 @@ export interface Source {
   token: string
   active: boolean
   default_exit_phase: string
+  last_polled_at?: string
 }
 
 export interface SourceCreate {
