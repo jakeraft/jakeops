@@ -24,7 +24,7 @@ from app.domain.services.session_parser import (
     synthesize_result_event,
 )
 from app.domain.services.stream_parser import extract_metadata, extract_transcript
-from app.domain.models.stream import StreamMetadata
+from app.domain.models.stream import StreamEvent, StreamMetadata
 from app.domain.services.event_bus import EventBus
 from app.ports.outbound.delivery_repository import DeliveryRepository
 from app.ports.outbound.subprocess_runner import SubprocessRunner
@@ -369,8 +369,8 @@ class DeliveryUseCasesImpl:
             if branch:
                 self._git.checkout_branch(work_dir, branch)
 
-            # Try streaming mode first, fallback to blocking mode
-            if hasattr(self._runner, "run_stream"):
+            # Use streaming when event_bus is wired, blocking otherwise
+            if self._event_bus:
                 collected_events: list[dict] = []
                 async for event in self._runner.run_stream(
                     prompt=prompt,
@@ -380,11 +380,8 @@ class DeliveryUseCasesImpl:
                     delivery_id=delivery_id,
                 ):
                     collected_events.append(event)
-                    if self._event_bus:
-                        await self._event_bus.publish(delivery_id, event)
+                    await self._event_bus.publish(delivery_id, event)
 
-                # Extract metadata from collected stream events
-                from app.domain.models.stream import StreamEvent
                 stream_events = [
                     StreamEvent(
                         type=e.get("type", ""),
@@ -398,7 +395,6 @@ class DeliveryUseCasesImpl:
                 metadata = extract_metadata(stream_events)
                 transcript = extract_transcript(stream_events)
             else:
-                # Fallback: blocking run + session file parsing (existing logic)
                 result_text, session_id = await self._runner.run(
                     prompt=prompt,
                     cwd=work_dir,

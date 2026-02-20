@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Protocol
+from collections.abc import AsyncGenerator
+from typing import Any, Protocol
 
 
 class SubprocessRunner(Protocol):
@@ -14,6 +15,19 @@ class SubprocessRunner(Protocol):
     ) -> tuple[str, str | None]:
         """Run `claude -p --output-format json`.
         Returns: (result_text, session_id)
+        """
+        ...
+
+    def run_stream(
+        self,
+        prompt: str,
+        cwd: str,
+        allowed_tools: list[str] | None = None,
+        append_system_prompt: str | None = None,
+        delivery_id: str | None = None,
+    ) -> AsyncGenerator[dict[str, Any], None]:
+        """Run `claude -p --output-format stream-json`.
+        Yields parsed JSON events line by line.
         """
         ...
 

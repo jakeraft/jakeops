@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams } from "react-router"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -389,14 +389,26 @@ function streamEventsToMessages(events: StreamEvent[]): TranscriptMessage[] {
 function LiveTranscript({ deliveryId, runStatus }: { deliveryId: string; runStatus: string }) {
   const { events, done } = useEventStream(deliveryId, runStatus === "running")
   const bottomRef = useRef<HTMLDivElement>(null)
+  const messages = useMemo(() => streamEventsToMessages(events), [events])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [events.length])
+  }, [messages.length])
 
   if (events.length === 0 && !done) return null
 
-  const messages = streamEventsToMessages(events)
+  if (events.length === 0 && done) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Live Transcript</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">No events received.</p>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card>

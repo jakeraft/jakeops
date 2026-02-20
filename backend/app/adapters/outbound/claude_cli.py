@@ -87,7 +87,12 @@ class ClaudeCliAdapter:
         try:
             assert proc.stdout is not None
             while True:
-                line = await proc.stdout.readline()
+                try:
+                    line = await asyncio.wait_for(proc.stdout.readline(), timeout=600)
+                except asyncio.TimeoutError:
+                    proc.kill()
+                    await proc.wait()
+                    raise RuntimeError("claude CLI streaming timeout (exceeded 600s)")
                 if not line:
                     break
                 text = line.decode().strip()
@@ -98,6 +103,12 @@ class ClaudeCliAdapter:
                 except json.JSONDecodeError:
                     logger.warning("skipping non-JSON line", line=text)
             await proc.wait()
+            if proc.returncode != 0:
+                stderr_data = await proc.stderr.read() if proc.stderr else b""
+                raise RuntimeError(
+                    f"claude CLI failed (exit {proc.returncode}): "
+                    f"{stderr_data.decode().strip()}"
+                )
         finally:
             if delivery_id:
                 self._processes.pop(delivery_id, None)

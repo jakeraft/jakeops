@@ -6,47 +6,7 @@ from app.domain.models.delivery import DeliveryCreate
 from app.domain.services.event_bus import EventBus
 from app.usecases.delivery_usecases import DeliveryUseCasesImpl
 
-
-class MockStreamingRunner:
-    def __init__(self, result_text: str = "Generated plan content"):
-        self.result_text = result_text
-        self.calls: list[dict] = []
-
-    async def run(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
-        self.calls.append({"prompt": prompt, "cwd": cwd})
-        return (self.result_text, None)
-
-    async def run_stream(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
-        self.calls.append({"prompt": prompt, "cwd": cwd})
-        events = [
-            {"type": "system", "subtype": "init", "message": {"model": "test-model", "cwd": cwd}},
-            {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": self.result_text}], "usage": {"input_tokens": 10, "output_tokens": 5}}},
-            {"type": "result", "subtype": "success", "message": {"result": self.result_text, "is_error": False, "cost_usd": 0.01, "input_tokens": 10, "output_tokens": 5, "duration_ms": 100}},
-        ]
-        for event in events:
-            yield event
-
-    def kill(self, delivery_id):
-        return False
-
-
-class MockGitOperations:
-    def __init__(self):
-        self.clone_calls = []
-
-    def clone_repo(self, owner, repo, token, dest):
-        self.clone_calls.append({"owner": owner, "repo": repo})
-        from pathlib import Path
-        Path(dest).mkdir(parents=True, exist_ok=True)
-
-    def checkout_branch(self, cwd, branch):
-        pass
-
-    def create_branch_with_file(self, *args, **kwargs):
-        pass
-
-    def create_draft_pr(self, *args, **kwargs):
-        return "https://github.com/test/pr/1"
+from tests.test_agent_execution import MockStreamingRunner, MockGitOperations
 
 
 @pytest.fixture

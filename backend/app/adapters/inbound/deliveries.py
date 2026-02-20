@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
@@ -31,10 +32,23 @@ async def stream_delivery(delivery_id: str, request: Request):
     event_bus = get_event_bus(request)
 
     async def event_generator():
-        async for event in event_bus.subscribe(delivery_id):
-            if await request.is_disconnected():
-                break
-            yield f"data: {json.dumps(event)}\n\n"
+        sub = event_bus.subscribe(delivery_id)
+        try:
+            while True:
+                try:
+                    event = await asyncio.wait_for(anext(sub), timeout=15)
+                except StopAsyncIteration:
+                    break
+                except asyncio.TimeoutError:
+                    if await request.is_disconnected():
+                        break
+                    yield ": heartbeat\n\n"
+                    continue
+                if await request.is_disconnected():
+                    break
+                yield f"data: {json.dumps(event)}\n\n"
+        finally:
+            await sub.aclose()
         yield "event: done\ndata: {}\n\n"
 
     return StreamingResponse(

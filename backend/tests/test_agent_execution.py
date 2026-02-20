@@ -35,6 +35,9 @@ class MockSubprocessRunner:
         })
         return (self.result_text, None)
 
+    async def run_stream(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
+        yield {"type": "result", "message": {"result": self.result_text}}
+
     def kill(self, delivery_id: str) -> bool:
         return False
 
@@ -140,11 +143,12 @@ class TestGeneratePlan:
         delivery_repo, source_repo = repos
 
         class FailingRunner:
-            async def run(
-                self, prompt, cwd, allowed_tools=None,
-                append_system_prompt=None, delivery_id=None,
-            ):
+            async def run(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
                 raise RuntimeError("claude CLI timeout")
+
+            async def run_stream(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
+                raise RuntimeError("claude CLI timeout")
+                yield  # noqa: unreachable — makes this an async generator
 
             def kill(self, delivery_id):
                 return False
@@ -167,11 +171,12 @@ class TestGeneratePlan:
         delivery_repo, source_repo = repos
 
         class FailingRunner:
-            async def run(
-                self, prompt, cwd, allowed_tools=None,
-                append_system_prompt=None, delivery_id=None,
-            ):
+            async def run(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
                 raise RuntimeError("fail")
+
+            async def run_stream(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
+                raise RuntimeError("fail")
+                yield  # noqa: unreachable — makes this an async generator
 
             def kill(self, delivery_id):
                 return False
@@ -202,6 +207,9 @@ class TestGeneratePlan:
         class RunnerWithSessionId:
             async def run(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
                 return ("Plan result", "bad-session-id")
+
+            async def run_stream(self, prompt, cwd, allowed_tools=None, append_system_prompt=None, delivery_id=None):
+                yield {"type": "result", "message": {"result": "Plan result"}}
 
             def kill(self, delivery_id):
                 return False
