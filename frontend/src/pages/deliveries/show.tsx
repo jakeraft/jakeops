@@ -166,33 +166,52 @@ function RefsList({ refs }: { refs: Ref[] }) {
   if (refs.length === 0) return null
 
   return (
-    <div className="space-y-2">
-      <h2 className="text-lg font-semibold">References</h2>
-      <div className="flex flex-wrap gap-2">
-        {refs.map((ref, i) => (
-          <div key={i} className="flex items-center gap-1.5">
-            <Badge variant="outline" className="text-xs">
-              {ref.role}
-            </Badge>
-            <Badge variant="secondary" className="text-xs">
-              {ref.type}
-            </Badge>
-            {ref.url ? (
-              <a
-                href={ref.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-blue-600 underline-offset-4 hover:underline"
-              >
-                {ref.label}
-              </a>
-            ) : (
-              <span className="text-sm">{ref.label}</span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>References</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Role</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Label</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {refs.map((ref, i) => (
+              <TableRow key={i}>
+                <TableCell>
+                  <Badge variant="outline" className="text-xs">
+                    {ref.role}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="secondary" className="text-xs">
+                    {ref.type}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {ref.url ? (
+                    <a
+                      href={ref.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 underline-offset-4 hover:underline"
+                    >
+                      {ref.label}
+                    </a>
+                  ) : (
+                    <span className="text-sm">{ref.label}</span>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -392,23 +411,7 @@ export function DeliveryShow() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold">{delivery.summary}</h1>
-        <div className="flex items-center gap-3">
-          <Badge variant="secondary" className={PHASE_CLASSES[delivery.phase]}>
-            {delivery.phase}
-          </Badge>
-          <Badge
-            variant="secondary"
-            className={STATUS_CLASSES[delivery.run_status]}
-          >
-            {delivery.run_status}
-          </Badge>
-          <span className="text-sm text-muted-foreground">
-            {delivery.repository}
-          </span>
-        </div>
-      </div>
+      <h1 className="text-2xl font-bold">{delivery.summary}</h1>
 
       {/* Action Error */}
       {actionError && (

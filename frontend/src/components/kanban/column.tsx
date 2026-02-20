@@ -15,7 +15,7 @@ export function KanbanColumn({
   onCardClick,
 }: KanbanColumnProps) {
   return (
-    <div className="flex w-64 shrink-0 flex-col rounded-lg border">
+    <div className="flex min-w-0 flex-col rounded-lg border">
       <div className="flex items-center justify-between p-3 pb-2">
         <Badge variant="secondary" className={PHASE_CLASSES[phase]}>
           {phase}

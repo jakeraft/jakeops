@@ -296,8 +296,9 @@ export function SourceList() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">#</TableHead>
+              <TableHead>Source</TableHead>
               <TableHead>Type</TableHead>
-              <TableHead>Repository</TableHead>
               <TableHead>Active</TableHead>
               <TableHead>Endpoint</TableHead>
               <TableHead>Last Synced</TableHead>
@@ -305,12 +306,20 @@ export function SourceList() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sources.map((s) => (
+            {sources.map((s, i) => (
               <TableRow key={s.id}>
-                <TableCell>{s.type}</TableCell>
+                <TableCell className="text-muted-foreground">{i + 1}</TableCell>
                 <TableCell className="font-medium">
-                  {s.owner}/{s.repo}
+                  <a
+                    href={`https://github.com/${s.owner}/${s.repo}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 underline-offset-4 hover:underline"
+                  >
+                    {s.owner}/{s.repo}
+                  </a>
                 </TableCell>
+                <TableCell>{s.type}</TableCell>
                 <TableCell>
                   <Badge variant={s.active ? "default" : "secondary"}>
                     {s.active ? "active" : "inactive"}

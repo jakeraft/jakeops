@@ -1,16 +1,18 @@
-import { useState, useMemo } from "react"
+import { useMemo } from "react"
+import { useNavigate } from "react-router"
 import type { Delivery, Phase } from "@/types"
 import { PHASES } from "@/utils/kanban-rules"
 import { KanbanColumn } from "./column"
-import { DetailSheet } from "./detail-sheet"
+
+const CI_PHASES = PHASES.slice(0, 4) // intake, plan, implement, review
+const CD_PHASES = PHASES.slice(4)    // verify, deploy, observe, close
 
 interface KanbanBoardProps {
   deliveries: Delivery[]
-  onRefresh: () => void
 }
 
-export function KanbanBoard({ deliveries, onRefresh }: KanbanBoardProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+export function KanbanBoard({ deliveries }: KanbanBoardProps) {
+  const navigate = useNavigate()
 
   const columns = useMemo(() => {
     const grouped: Record<Phase, Delivery[]> = {} as Record<Phase, Delivery[]>
@@ -23,26 +25,36 @@ export function KanbanBoard({ deliveries, onRefresh }: KanbanBoardProps) {
     return grouped
   }, [deliveries])
 
-  return (
-    <>
-      <div className="flex gap-3 overflow-x-auto pb-4">
-        {PHASES.map((phase) => (
-          <KanbanColumn
-            key={phase}
-            phase={phase}
-            deliveries={columns[phase]}
-            onCardClick={(d) => setSelectedId(d.id)}
-          />
-        ))}
-      </div>
+  const handleCardClick = (d: Delivery) => navigate(`/deliveries/${d.id}`)
 
-      <DetailSheet
-        deliveryId={selectedId}
-        onOpenChange={(open) => {
-          if (!open) setSelectedId(null)
-        }}
-        onActionComplete={onRefresh}
-      />
-    </>
+  return (
+    <div className="space-y-4">
+      <div>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">CI</h2>
+        <div className="grid grid-cols-4 gap-3">
+          {CI_PHASES.map((phase) => (
+            <KanbanColumn
+              key={phase}
+              phase={phase}
+              deliveries={columns[phase]}
+              onCardClick={handleCardClick}
+            />
+          ))}
+        </div>
+      </div>
+      <div>
+        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">CD</h2>
+        <div className="grid grid-cols-4 gap-3">
+          {CD_PHASES.map((phase) => (
+            <KanbanColumn
+              key={phase}
+              phase={phase}
+              deliveries={columns[phase]}
+              onCardClick={handleCardClick}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
   )
 }

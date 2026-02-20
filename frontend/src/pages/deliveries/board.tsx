@@ -2,7 +2,7 @@ import { useDeliveries } from "@/hooks/use-deliveries"
 import { KanbanBoard } from "@/components/kanban/board"
 
 export function DeliveryBoard() {
-  const { deliveries, loading, error, refresh } = useDeliveries()
+  const { deliveries, loading, error } = useDeliveries()
 
   if (loading) {
     return <p className="p-4 text-muted-foreground">Loading...</p>
@@ -12,5 +12,5 @@ export function DeliveryBoard() {
     return <p className="p-4 text-destructive">Error: {error}</p>
   }
 
-  return <KanbanBoard deliveries={deliveries} onRefresh={refresh} />
+  return <KanbanBoard deliveries={deliveries} />
 }
