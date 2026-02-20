@@ -1,8 +1,11 @@
-"""Parse stream-json output.
+"""Extract metadata and transcript from StreamEvent lists.
 
-Parses stdout JSONL from `claude -p --output-format stream-json`
-into StreamEvent objects, then extracts metadata and transcript output.
-Implemented as pure functions with no external side effects.
+`extract_metadata` and `extract_transcript` are consumed by the delivery
+pipeline. Events are produced by `session_parser.parse_session_lines` (from
+local session JSONL files under ~/.claude/projects/).
+
+`parse_stream_lines` is retained for testing but is no longer used in the
+production flow (the adapter now uses `--output-format json`).
 """
 
 from __future__ import annotations

@@ -53,7 +53,7 @@ class DeliverySyncUseCase:
 
                 body = DeliveryCreate(
                     phase=Phase.intake,
-                    run_status=RunStatus.pending,
+                    run_status=RunStatus.succeeded,
                     endpoint=Phase(default_endpoint),
                     checkpoints=[Phase(cp) for cp in default_checkpoints],
                     summary=f"GitHub Issue #{gh_issue.number}: {gh_issue.title}",
@@ -67,7 +67,8 @@ class DeliverySyncUseCase:
                         )
                     ],
                 )
-                self._deliveries.create_delivery(body)
+                result = self._deliveries.create_delivery(body)
+                self._deliveries.advance_from_intake(result["id"])
                 created += 1
                 logger.info("Created delivery", owner=owner, repo=repo, label=label)
 

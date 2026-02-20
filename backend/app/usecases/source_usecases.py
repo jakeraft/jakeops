@@ -2,7 +2,7 @@ import hashlib
 from datetime import datetime
 
 from app.domain.constants import KST, ID_HEX_LENGTH
-from app.domain.models.source import SourceCreate, SourceUpdate
+from app.domain.models.source import Source, SourceCreate, SourceUpdate
 from app.ports.outbound.source_repository import SourceRepository
 
 
@@ -18,10 +18,20 @@ class SourceUseCasesImpl:
     def __init__(self, repo: SourceRepository) -> None:
         self._repo = repo
 
+    def _normalize(self, raw: dict) -> dict:
+        """Migrate legacy fields and fill defaults via Pydantic model."""
+        data = dict(raw)
+        # Migrate legacy field name
+        if "default_exit_phase" in data and "endpoint" not in data:
+            data["endpoint"] = data.pop("default_exit_phase")
+        elif "default_exit_phase" in data:
+            del data["default_exit_phase"]
+        return Source.model_validate(data).model_dump()
+
     def _mask_source(self, source: dict) -> dict:
-        masked = dict(source)
-        masked["token"] = mask_token(masked.get("token", ""))
-        return masked
+        normalized = self._normalize(source)
+        normalized["token"] = mask_token(normalized.get("token", ""))
+        return normalized
 
     def list_sources(self) -> list[dict]:
         return [self._mask_source(s) for s in self._repo.list_sources()]

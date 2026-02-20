@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.domain.models.delivery import DeliveryCreate, DeliveryUpdate
@@ -54,13 +54,15 @@ def update_delivery(delivery_id: str, body: DeliveryUpdate, uc=Depends(get_useca
 
 
 @router.post("/deliveries/{delivery_id}/approve")
-def approve(delivery_id: str, uc=Depends(get_usecases)):
+async def approve(delivery_id: str, background: BackgroundTasks, uc=Depends(get_usecases)):
     try:
         result = uc.approve(delivery_id)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
     if result is None:
         raise HTTPException(status_code=404, detail="Delivery not found")
+    if result.pop("_auto_trigger", False):
+        background.add_task(uc.auto_trigger_phase, delivery_id)
     return result
 
 
@@ -140,7 +142,10 @@ def retry(delivery_id: str, uc=Depends(get_usecases)):
 
 @router.post("/deliveries/{delivery_id}/cancel")
 def cancel(delivery_id: str, uc=Depends(get_usecases)):
-    result = uc.cancel(delivery_id)
+    try:
+        result = uc.cancel(delivery_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     if result is None:
         raise HTTPException(status_code=404, detail="Delivery not found")
     return result

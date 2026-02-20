@@ -45,7 +45,7 @@ FORWARD_TRANSITIONS: dict[str, str] = {
 }
 
 REJECT_TRANSITIONS: dict[str, str] = {
-    "plan": "intake",
+    "plan": "plan",
     "implement": "plan",
     "review": "implement",
 }
@@ -84,6 +84,35 @@ def _append_phase_run(
         "ended_at": None,
     }
     delivery.setdefault("phase_runs", []).append(run)
+
+
+def _skip_system_phases(
+    delivery: dict,
+    next_phase: str,
+    checkpoints: list[str],
+) -> str:
+    """Auto-succeed system phases that aren't checkpoints, returns final phase."""
+    while (
+        next_phase != "close"
+        and DEFAULT_EXECUTOR.get(next_phase) == "system"
+        and next_phase not in checkpoints
+    ):
+        delivery["run_status"] = "succeeded"
+        _append_phase_run(delivery, next_phase, "succeeded")
+        endpoint = delivery.get("endpoint", "deploy")
+        if next_phase == endpoint:
+            next_phase = "close"
+        else:
+            next_phase = FORWARD_TRANSITIONS.get(next_phase, "close")
+        delivery["phase"] = next_phase
+        delivery["run_status"] = "pending"
+        _append_phase_run(delivery, next_phase, "pending")
+
+    if next_phase == "close":
+        delivery["run_status"] = "succeeded"
+        _append_phase_run(delivery, "close", "succeeded")
+
+    return next_phase
 
 
 class DeliveryUseCasesImpl:
@@ -170,8 +199,7 @@ class DeliveryUseCasesImpl:
             return None
         current_phase = existing["phase"]
         current_run_status = existing["run_status"]
-        # TODO: use checkpoints for auto-advance logic
-        # checkpoints = existing.get("checkpoints", list(DEFAULT_CHECKPOINTS))
+        checkpoints = existing.get("checkpoints", list(DEFAULT_CHECKPOINTS))
 
         if current_phase not in ACTION_PHASES:
             raise ValueError(f"approve: '{current_phase}' is not an action phase")
@@ -188,10 +216,95 @@ class DeliveryUseCasesImpl:
 
         existing["phase"] = next_phase
         existing["run_status"] = "pending"
-        existing["updated_at"] = datetime.now(KST).isoformat()
         _append_phase_run(existing, next_phase, "pending")
+
+        next_phase = _skip_system_phases(existing, next_phase, checkpoints)
+
+        existing["updated_at"] = datetime.now(KST).isoformat()
         self._repo.save_delivery(delivery_id, existing)
-        return {"id": delivery_id, "phase": next_phase, "run_status": "pending"}
+
+        auto_trigger = (
+            next_phase != "close"
+            and DEFAULT_EXECUTOR.get(next_phase) == "agent"
+            and next_phase not in checkpoints
+        )
+        return {
+            "id": delivery_id,
+            "phase": existing["phase"],
+            "run_status": existing["run_status"],
+            "_auto_trigger": auto_trigger,
+        }
+
+    def advance_from_intake(self, delivery_id: str) -> dict | None:
+        existing = self._repo.get_delivery(delivery_id)
+        if existing is None:
+            return None
+        if existing["phase"] != "intake" or existing["run_status"] != "succeeded":
+            raise ValueError(
+                "advance_from_intake: requires phase='intake' and run_status='succeeded'"
+            )
+        checkpoints = existing.get("checkpoints", list(DEFAULT_CHECKPOINTS))
+        existing["phase"] = "plan"
+        existing["run_status"] = "pending"
+        existing["updated_at"] = datetime.now(KST).isoformat()
+        _append_phase_run(existing, "plan", "pending")
+        self._repo.save_delivery(delivery_id, existing)
+        auto_trigger = "plan" not in checkpoints
+        return {
+            "id": delivery_id,
+            "phase": "plan",
+            "run_status": "pending",
+            "_auto_trigger": auto_trigger,
+        }
+
+    async def _auto_advance_chain(self, delivery_id: str) -> None:
+        existing = self._repo.get_delivery(delivery_id)
+        if existing is None:
+            return
+        checkpoints = existing.get("checkpoints", list(DEFAULT_CHECKPOINTS))
+        current_phase = existing["phase"]
+        endpoint = existing.get("endpoint", "deploy")
+
+        if current_phase in checkpoints:
+            return
+
+        if current_phase == endpoint:
+            self.close_delivery(delivery_id)
+            return
+
+        next_phase = FORWARD_TRANSITIONS.get(current_phase)
+        if next_phase is None:
+            return
+
+        existing["phase"] = next_phase
+        existing["run_status"] = "pending"
+        _append_phase_run(existing, next_phase, "pending")
+
+        next_phase = _skip_system_phases(existing, next_phase, checkpoints)
+
+        existing["updated_at"] = datetime.now(KST).isoformat()
+        self._repo.save_delivery(delivery_id, existing)
+
+        if next_phase == "close":
+            return
+
+        # Auto-trigger agent phases that aren't checkpoints
+        executor = DEFAULT_EXECUTOR.get(next_phase)
+        if executor == "agent" and next_phase not in checkpoints:
+            await self.auto_trigger_phase(delivery_id)
+
+    async def auto_trigger_phase(self, delivery_id: str) -> dict | None:
+        existing = self._repo.get_delivery(delivery_id)
+        if existing is None:
+            return None
+        phase = existing["phase"]
+        if phase == "plan":
+            return await self.generate_plan(delivery_id)
+        elif phase == "implement":
+            return await self.run_implement(delivery_id)
+        elif phase == "review":
+            return await self.run_review(delivery_id)
+        return None
 
     def reject(self, delivery_id: str, reason: str) -> dict | None:
         existing = self._repo.get_delivery(delivery_id)
@@ -320,13 +433,12 @@ class DeliveryUseCasesImpl:
         existing = self._repo.get_delivery(delivery_id)
         if existing is None:
             return None
-        if existing["phase"] != "intake":
+        if existing["phase"] != "plan" or existing["run_status"] != "pending":
             raise ValueError(
-                f"generate_plan: not allowed from phase '{existing['phase']}'. "
-                "only 'intake' is allowed"
+                f"generate_plan: requires phase='plan' and run_status='pending', "
+                f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
             )
 
-        existing["phase"] = "plan"
         prompt = build_plan_prompt(existing)
 
         result = await self._run_agent_phase(
@@ -337,12 +449,7 @@ class DeliveryUseCasesImpl:
             system_prompt=PLAN_SYSTEM_PROMPT,
         )
 
-        if result["run_status"] == "failed":
-            delivery = self._repo.get_delivery(delivery_id)
-            delivery["phase"] = "intake"
-            self._repo.save_delivery(delivery_id, delivery)
-            result["phase"] = "intake"
-        elif result["run_status"] == "succeeded":
+        if result["run_status"] == "succeeded":
             delivery = self._repo.get_delivery(delivery_id)
             delivery["plan"] = {
                 "content": result.get("result_text", ""),
@@ -351,6 +458,7 @@ class DeliveryUseCasesImpl:
                 "cwd": "",
             }
             self._repo.save_delivery(delivery_id, delivery)
+            await self._auto_advance_chain(delivery_id)
 
         return result
 
@@ -366,13 +474,18 @@ class DeliveryUseCasesImpl:
 
         prompt = build_implement_prompt(existing)
 
-        return await self._run_agent_phase(
+        result = await self._run_agent_phase(
             delivery=existing,
             delivery_id=delivery_id,
             prompt=prompt,
             mode="implement",
             system_prompt=IMPLEMENT_SYSTEM_PROMPT,
         )
+
+        if result["run_status"] == "succeeded":
+            await self._auto_advance_chain(delivery_id)
+
+        return result
 
     async def run_review(self, delivery_id: str) -> dict | None:
         existing = self._repo.get_delivery(delivery_id)
@@ -386,13 +499,18 @@ class DeliveryUseCasesImpl:
 
         prompt = build_review_prompt(existing)
 
-        return await self._run_agent_phase(
+        result = await self._run_agent_phase(
             delivery=existing,
             delivery_id=delivery_id,
             prompt=prompt,
             mode="review",
             system_prompt=REVIEW_SYSTEM_PROMPT,
         )
+
+        if result["run_status"] == "succeeded":
+            await self._auto_advance_chain(delivery_id)
+
+        return result
 
     async def run_fix(self, delivery_id: str, feedback: str = "") -> dict | None:
         existing = self._repo.get_delivery(delivery_id)
@@ -406,13 +524,18 @@ class DeliveryUseCasesImpl:
 
         prompt = build_fix_prompt(existing, feedback=feedback)
 
-        return await self._run_agent_phase(
+        result = await self._run_agent_phase(
             delivery=existing,
             delivery_id=delivery_id,
             prompt=prompt,
             mode="fix",
             system_prompt=FIX_SYSTEM_PROMPT,
         )
+
+        if result["run_status"] == "succeeded":
+            await self._auto_advance_chain(delivery_id)
+
+        return result
 
     def retry(self, delivery_id: str) -> dict | None:
         existing = self._repo.get_delivery(delivery_id)
