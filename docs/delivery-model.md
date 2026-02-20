@@ -49,7 +49,7 @@ Two orthogonal axes describe a Delivery's state:
 | **Phase** | `phase` | Where are we in the lifecycle? |
 | **Run Status** | `run_status` | How is the current phase going? |
 
-RunStatus values: `pending`, `running`, `succeeded`, `failed`, `blocked`, `canceled`.
+RunStatus values: `pending`, `running`, `succeeded`, `failed`, `blocked`.
 
 ### Executor
 
@@ -87,8 +87,13 @@ transitions directly to `close`.
 
 ### Checkpoints
 
-`checkpoints` controls where the pipeline pauses for human action:
+`checkpoints` controls where the pipeline pauses for human action.
+Checkpoint = Full Control:
 
+- **checkpoint ON** → human must trigger (pending→running) AND approve (succeeded→next)
+- **checkpoint OFF** → system auto-triggers AND auto-advances
+
+Presets:
 - Default → `checkpoints: ["plan", "implement", "review"]` (pause at every action phase)
 - Trusted repo → `checkpoints: ["plan"]` (only review the plan)
 - Full auto → `checkpoints: []` (no human intervention)
@@ -108,7 +113,7 @@ At non-checkpoint phases, the system auto-advances without human intervention.
 ### Reject
 
 At action phases, human can **reject** to send the Delivery back:
-- `plan` → `intake`
+- `plan` → `plan` (stays at plan/pending with reject reason preserved)
 - `implement` → `plan`
 - `review` → `implement`
 
@@ -118,15 +123,25 @@ From `run_status == failed`, **retry** resets to `pending` in the same phase.
 
 ### Cancel
 
-Sets `run_status = canceled`. Phase unchanged. Terminal.
+Sets `run_status = failed` with `error = "Canceled by user"`. Only allowed when
+`run_status == running`. Kills the running agent subprocess. Phase unchanged.
 
 ## Auto-Flow Logic
+
+### Intake
+
+Deliveries are created at `intake/succeeded` and immediately advanced to
+`plan/pending`. Intake is a system phase that completes at creation time.
+
+### Phase Completion
 
 ```
 Phase completed (succeeded):
   ├─ phase in checkpoints → PAUSE, wait for human action
   ├─ phase == endpoint → auto-advance to close
   └─ else → auto-advance to next phase
+      ├─ next is system phase → auto-succeed, continue chain
+      └─ next is agent phase → auto-trigger agent
 
 Phase failed:
   └─ always PAUSE (human decides retry)
@@ -139,14 +154,19 @@ Review completed (succeeded):
       └─ auto-reject → implement (with feedback, always)
 ```
 
+### Approve with Auto-Flow
+
+When human approves at a checkpoint:
+1. Advance to next phase
+2. If next phase is a system phase (not a checkpoint), auto-succeed and repeat
+3. If next phase is an agent phase (not a checkpoint), auto-trigger via background task
+4. If next phase is a checkpoint, stop and wait
+
 ## Terminal State (computed)
 
 ```python
 def is_terminal(delivery) -> bool:
-    return (
-        (delivery.phase == "close" and delivery.run_status == "succeeded")
-        or delivery.run_status == "canceled"
-    )
+    return delivery.phase == "close" and delivery.run_status == "succeeded"
 ```
 
 ## Schema

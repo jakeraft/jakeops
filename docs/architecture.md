@@ -69,7 +69,7 @@ Each Delivery has two orthogonal state axes:
 | Phase | `phase` | Where are we in the lifecycle? |
 | Run Status | `run_status` | How is the current phase going? |
 
-RunStatus values: `pending | running | succeeded | failed | blocked | canceled`.
+RunStatus values: `pending | running | succeeded | failed | blocked`.
 
 ### Executor
 
@@ -116,7 +116,7 @@ Human actions are available at **action phases** (`plan`, `implement`, `review`)
 | review | succeeded + pass | approve | → verify (pending) |
 | review | succeeded + not_pass | reject | → implement (pending, with feedback) |
 | review | failed | retry | → review (pending) |
-| any | — | cancel | → canceled (terminal) |
+| any | running | cancel | → failed (error: "Canceled by user") |
 
 ### Checkpoints and Endpoint
 
@@ -165,10 +165,7 @@ Legend:
 
 ```python
 def is_terminal(delivery) -> bool:
-    return (
-        (delivery.phase == "close" and delivery.run_status == "succeeded")
-        or delivery.run_status == "canceled"
-    )
+    return delivery.phase == "close" and delivery.run_status == "succeeded"
 ```
 
 ## Runtime Components
