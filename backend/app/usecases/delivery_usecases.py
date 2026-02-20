@@ -11,6 +11,9 @@ from app.domain.services.session_parser import (
 )
 from app.domain.services.stream_parser import extract_metadata, extract_transcript
 from app.ports.outbound.delivery_repository import DeliveryRepository
+from app.ports.outbound.subprocess_runner import SubprocessRunner
+from app.ports.outbound.git_operations import GitOperations
+from app.ports.outbound.source_repository import SourceRepository
 
 FORWARD_TRANSITIONS: dict[str, str] = {
     "intake": "plan",
@@ -57,8 +60,17 @@ def _append_phase_run(delivery: dict, phase: str, run_status: str, executor: str
 
 
 class DeliveryUseCasesImpl:
-    def __init__(self, repo: DeliveryRepository) -> None:
+    def __init__(
+        self,
+        repo: DeliveryRepository,
+        runner: SubprocessRunner | None = None,
+        git_ops: GitOperations | None = None,
+        source_repo: SourceRepository | None = None,
+    ) -> None:
         self._repo = repo
+        self._runner = runner
+        self._git = git_ops
+        self._source_repo = source_repo
 
     def list_deliveries(self) -> list[dict]:
         return self._repo.list_deliveries()

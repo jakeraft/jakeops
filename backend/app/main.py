@@ -12,6 +12,8 @@ from app.domain.services.worker_registry import WorkerRegistry
 from app.adapters.outbound.filesystem_delivery import FileSystemDeliveryRepository
 from app.adapters.outbound.filesystem_source import FileSystemSourceRepository
 from app.adapters.outbound.github_api import GitHubApiAdapter
+from app.adapters.outbound.claude_cli import ClaudeCliAdapter
+from app.adapters.outbound.git_cli import GitCliAdapter
 from app.usecases.delivery_usecases import DeliveryUseCasesImpl
 from app.usecases.source_usecases import SourceUseCasesImpl
 from app.usecases.delivery_sync import DeliverySyncUseCase
@@ -52,7 +54,11 @@ async def lifespan(app: FastAPI):
     source_repo = FileSystemSourceRepository(SOURCES_DIR)
 
     # Use Cases
-    app.state.delivery_usecases = DeliveryUseCasesImpl(delivery_repo)
+    runner = ClaudeCliAdapter()
+    git_ops = GitCliAdapter()
+    app.state.delivery_usecases = DeliveryUseCasesImpl(
+        delivery_repo, runner, git_ops, source_repo
+    )
     app.state.source_usecases = SourceUseCasesImpl(source_repo)
 
     # Runner Registry
