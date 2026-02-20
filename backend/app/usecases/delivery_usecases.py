@@ -11,9 +11,7 @@ from app.domain.constants import KST, SCHEMA_VERSION, ID_HEX_LENGTH
 from app.domain.models.delivery import DeliveryCreate, DeliveryUpdate, Phase, RunStatus, ExecutorKind
 from app.domain.models.source import DEFAULT_CHECKPOINTS
 from app.domain.prompts import (
-    build_plan_prompt,
-    build_implement_prompt,
-    build_review_prompt,
+    build_prompt,
     PLAN_SYSTEM_PROMPT,
     IMPLEMENT_SYSTEM_PROMPT,
     REVIEW_SYSTEM_PROMPT,
@@ -479,7 +477,7 @@ class DeliveryUseCasesImpl:
                 f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
             )
 
-        prompt = build_plan_prompt(existing)
+        prompt = build_prompt(existing)
 
         result = await self._run_agent_phase(
             delivery=existing,
@@ -549,7 +547,7 @@ class DeliveryUseCasesImpl:
                 f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
             )
 
-        prompt = build_implement_prompt(existing)
+        prompt = build_prompt(existing)
         branch = self._get_pr_branch(existing)
 
         result = await self._run_agent_phase(
@@ -576,7 +574,7 @@ class DeliveryUseCasesImpl:
                 f"got phase='{existing['phase']}' run_status='{existing['run_status']}'"
             )
 
-        prompt = build_review_prompt(existing)
+        prompt = build_prompt(existing)
         branch = self._get_pr_branch(existing)
 
         result = await self._run_agent_phase(

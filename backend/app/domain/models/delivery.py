@@ -42,8 +42,8 @@ class PhaseRun(BaseModel):
 
 
 class RefRole(str, Enum):
-    trigger = "trigger"
-    output = "output"
+    request = "request"
+    work = "work"
     parent = "parent"
 
 
