@@ -61,3 +61,10 @@ Useful environment variables:
 
 - `JAKEOPS_DATA_DIR`
 - `JAKEOPS_SOURCES_DIR`
+
+## Agent Conventions
+
+- Frontend rules: `.claude/rules/frontend.md`
+- Backend rules: `.claude/rules/backend.md`
+- Skills: `.claude/skills/` (6 skills installed)
+- MCP: `.claude/mcp.json` (shadcn component registry)
