@@ -1,12 +1,12 @@
 # Agent Coding Setup Design
 
 **Date**: 2026-02-20
-**Issue**: #1 (feat: Agent Coding Setup + shadcn Migration)
-**Scope**: Agent coding conventions only (Claude Code). Frontend rewrite is a separate task.
+**Issue**: #1 (feat: Agent Coding Setup)
+**Scope**: Agent coding conventions only (Claude Code). Frontend implementation is a separate task.
 
 ## Context
 
-JakeOps frontend is being rewritten from React 19 + Ant Design 6 to React 19 + shadcn/ui + TailwindCSS. Before rewriting code, we need to establish agent coding conventions so AI agents produce consistent, high-quality code.
+JakeOps frontend uses React 19 + shadcn/ui + TailwindCSS. Agent coding conventions ensure AI agents produce consistent, high-quality code.
 
 ## Decision
 
@@ -45,7 +45,7 @@ project-root/
 #### .claude/rules/frontend.md
 
 - Stack: React 19 + TypeScript + shadcn/ui + TailwindCSS + React Router 7 + Vite 7
-- Absolute rules: no modifying components/ui/, no custom CSS, no antd imports, use shadcn when available, proven libraries for complex features
+- Absolute rules: no modifying components/ui/, no custom CSS, use shadcn when available, proven libraries for complex features
 - Allowed libraries: shadcn/ui, TailwindCSS, dnd-kit, TanStack Table, React Router 7
 - File structure: pages/<domain>/, components/, components/ui/ (read-only), hooks/, utils/, types.ts
 - Naming: kebab-case files, PascalCase components, camelCase hooks/utils

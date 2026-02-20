@@ -36,7 +36,6 @@ paths:
 ## Absolute Rules
 - Never modify files in components/ui/ (keep shadcn originals intact)
 - Never create custom CSS files
-- Never import from antd
 - Never implement components from scratch — use shadcn if available
 - Complex features (DnD, editors, charts) must use proven libraries
 
