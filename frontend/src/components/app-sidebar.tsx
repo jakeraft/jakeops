@@ -19,7 +19,7 @@ const NAV_ITEMS = [
 
 export function AppSidebar() {
   return (
-    <Sidebar collapsible="none">
+    <Sidebar collapsible="none" className="h-full">
       <SidebarHeader>
         <span className="px-2 text-lg font-semibold">JakeOps</span>
       </SidebarHeader>
